@@ -49,7 +49,7 @@ def get_link_from_td_element(td_element):
         link = 'None'
     return link
 
-def main(url):
+def main(url, output_path):
     """
     Parameters
     --------------
@@ -60,7 +60,8 @@ def main(url):
     -----------
     
     """
-    # The following code below will only return javascript, not html..this is because the page 
+    # The following code below will only return javascript, 
+    # not html..this is because the page 
     # calls javascript and hasn't finished loading?
     # response = requests.get("https://www.bjjheroes.com/a-z-bjj-fighters-list")
     # print(response.text)
@@ -101,7 +102,7 @@ def main(url):
     drop_redundant_cols(df)
     format_links(df, url)
     
-    df.to_csv(sys.stdout)
+    df.to_csv(output_path)
 
 if __name__ == "__main__":
-    main(sys.argv[1])
+    main(sys.argv[1], sys.argv[2])
