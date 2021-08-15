@@ -21,8 +21,8 @@ def rename_df_cols(df):
     """
     rename the columns of the dictionary    
     """
-    df.columns=["last_name", "link", "nick_name",
-            "link_", "team", "team_link", "first_name", "link__"]
+    df.columns=["first_name", "link", "last_name",
+            "link_", "nick_name", "link__", "team", "team_link"]
 
 def get_df_from_dict(dictionary_of_rows):
     """
@@ -72,6 +72,7 @@ def main(url, output_path):
     tds = soup.find_all('td')
     
     row = []
+    num_plus_one = 1
     for num, td in enumerate(tds):
         
         text = td.text
@@ -84,8 +85,7 @@ def main(url, output_path):
         # so want to create new key, 
         # i.e. subsequent row in df, 
         # per four td elements
-        
-        row_mod = num%4
+        row_mod = num_plus_one%4
         # only correct every 4th number
         possible_row_num = int(num/4)
         if row_mod==0:
@@ -96,6 +96,7 @@ def main(url, output_path):
             data[f"row_{row_num}"] = row.copy()
             
             row.clear()
+        num_plus_one+=1
 
     df = get_df_from_dict(data)
     rename_df_cols(df)
