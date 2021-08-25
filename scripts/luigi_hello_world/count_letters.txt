@@ -1,0 +1,7 @@
+some | 4
+random | 6
+words | 5
+just | 4
+for | 3
+this | 4
+tutorial | 8
