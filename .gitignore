@@ -1,4 +1,7 @@
 bjj_lin/*
 api_key.txt
 geckodriver.log
-scripts/scrapers/__pycache__/*
+scripts/*/__pycache__/*
+transformed_data/*
+generated_data/*
+
