@@ -26,7 +26,7 @@ def main(config_parser_path):
 
     html_dir = config.get(
             'output_dirs',
-            'generated_data/htmls')
+            'htmls')
 
     if not Path(html_dir).is_dir():
         Path(html_dir).mkdir()
