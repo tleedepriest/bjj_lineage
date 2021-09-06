@@ -16,7 +16,11 @@ def main(fighter_links_csv, html_dir):
     html_dir: str
         the directory for saving the html files of each fighter
     """
+    if not Path(html_dir):
+        mkdir(exist_ok=True)
+    
     fighter_df = pd.read_csv(fighter_links_csv)
+    print(fighter_df)
     for (first_name, 
          last_name, 
          link) in zip(
@@ -35,6 +39,10 @@ def main(fighter_links_csv, html_dir):
                 response = requests.get(link)
                 with open(fighter_html_path, 'wb') as fh:
                     fh.write(response.content)
+    
+    # write empty file to signify that task has finished.
+    with open('markers/get_fighers_html', 'w') as fh:
+        fh.write('')
 
 if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2])
