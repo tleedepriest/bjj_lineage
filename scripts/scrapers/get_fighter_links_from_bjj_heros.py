@@ -35,7 +35,12 @@ def get_webpage_contents(page_url):
     """opens browser, visits url, waits for javascript to load"""
     driver = webdriver.Firefox()
     driver.get(page_url)
+    # wait so the page can load
     driver.implicitly_wait(5)
+
+    # want to scroll on page so the cookies window goes away
+    # and doesn't end up in csv
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
     contents = driver.page_source
     driver.quit()
     return contents
@@ -101,8 +106,7 @@ def main(url, output_path):
     df = get_df_from_dict(data)
     rename_df_cols(df)
     drop_redundant_cols(df)
-    format_links(df, url)
-    
+    format_links(df, url) 
     df.to_csv(output_path)
 
 if __name__ == "__main__":
