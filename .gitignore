@@ -4,4 +4,8 @@ geckodriver.log
 scripts/*/__pycache__/*
 transformed_data/*
 generated_data/*
+scripts/__pycache__/*
+__pycache__/*
+logs/*
+markers/*
 
