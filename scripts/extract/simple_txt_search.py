@@ -34,20 +34,20 @@ def main(txt_dir, out_csv_path):
             "and",
             "Lineage 2:",
             "Lineage 3:",
-            "Lineage 4:"]
+            "Lineage 4:",
+            "Home  BJJ Fighter DatabaseCategory", # appears before desired txt
+            "Next Article"] # appears after desired txt
 
     txt_files = get_file_list(txt_dir)
     tally_occurence = defaultdict(int)
-    print(len(txt_files))
+
     for txt_file in txt_files:
-        print(txt_file)
         contents = get_path_txt(txt_file)
         for word in words_to_count:
             if word in contents:
                 tally_occurence[word]+=1
             else:
                 tally_occurence[word]+=0
-    print(tally_occurence)
     df = pd.DataFrame(tally_occurence.items(), 
             columns=["word", "count_across_corpus"])
     df.to_csv(out_csv_path, index=False)
