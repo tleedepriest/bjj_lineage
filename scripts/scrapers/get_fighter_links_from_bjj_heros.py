@@ -4,6 +4,38 @@ import lxml
 from selenium import webdriver
 from bs4 import BeautifulSoup
 
+from schema import Schema, Regex
+import re
+
+def validate_scraped_table(data):
+    """
+    Parameters
+    --------------
+    data: pd.DataFrame()
+        dataframe before validation
+
+    Returns
+    --------------
+    None
+
+    Side Effects
+    -----------------
+    enforces simple schema rules to validate data
+    """
+    scraped = data.to_dict(orient='index')
+    
+    pattern = r'https://www\.bjjheroes\.com/a-z-bjj-fighters-list/\?p=[\d]+'
+    schema = Schema(
+            {"link": lambda link: re.match(pattern, link),
+            "first_name": lambda fn: len(fn) < 50,
+            "last_name": lambda ln: len(ln) < 50,
+            "nick_name": object,
+            "team_link": object,
+            "team": object
+            })
+    for value in scraped.values():
+        schema.validate(value)
+
 def format_links(df, url):
     """
     link on page is relative to the url of the page
@@ -106,7 +138,8 @@ def main(url, output_path):
     df = get_df_from_dict(data)
     rename_df_cols(df)
     drop_redundant_cols(df)
-    format_links(df, url) 
+    format_links(df, url)
+    validate_scraped_table(df)
     df.to_csv(output_path)
 
 if __name__ == "__main__":
