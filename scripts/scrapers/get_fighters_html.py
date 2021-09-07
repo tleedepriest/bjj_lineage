@@ -29,9 +29,10 @@ def main(fighter_links_csv, html_dir):
                 fighter_df['link'].tolist()):
             
             # clean names of path characters
-            first_name = first_name.replace("/", "").strip()
-            last_name = last_name.replace("/", "").strip()
-
+            # remove spaces from first and last name
+            # to remove space from filenames
+            first_name = first_name.replace("/", "").strip().replace(" ", "_")
+            last_name = last_name.replace("/", "").strip().replace(" ", "_")
             fighter_html_path =  Path(html_dir) / \
                     Path(f"{first_name}_{last_name}.html")
             
