@@ -23,7 +23,7 @@ def get_soup_from_static_html(html):
         #soup = BeautifulSoup(contents, features='lxml')
     return soup
 
-def main(html_dir, txt_dir):
+def main(html_dir, txt_dir, marker_file):
     """
     Parameters
     --------------
@@ -46,8 +46,13 @@ def main(html_dir, txt_dir):
             txt_path = Path(txt_dir) / Path(Path(html).stem + '.txt')
             soup = get_soup_from_static_html(html)
             text = soup.get_text()
-            with open(txt_path, 'w') as fh:
-                fh.write(text)
+            if not txt_path.is_file():
+                with open(txt_path, 'w') as fh:
+                    fh.write(text)
+
+    # write marker file as dependency for Luigi Pipeline
+    with open(marker_file, "w") as fh:
+        fh.write("")
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2])
+    main(sys.argv[1], sys.argv[2], sys.argv[3])
