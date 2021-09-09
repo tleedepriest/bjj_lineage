@@ -35,8 +35,7 @@ class RequestSaveHTML(luigi.Task):
                             self.input().path,
                             Path('generated_data/htmls')
                             )
-
-
+ 
 if __name__ == "__main__":
     luigi.run()
 
