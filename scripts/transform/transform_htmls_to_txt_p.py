@@ -5,19 +5,24 @@ import sys
 from pathlib import Path
 import pandas as pd
 from bs4 import BeautifulSoup, Tag, NavigableString
+utils_abs_dir_path = Path(
+                Path(__file__).parent.resolve().parent) / Path('utils')
+sys.path.insert(0, str(utils_abs_dir_path))
 
-def get_soup(html):
-    """
-    Parameters
-    --------------
-    html: Path()
-        path object to html file
-    open html and convert to soup
-    """
-    with open(html, 'r') as fh:
-        contents = fh.read()
-        soup = BeautifulSoup(contents, features="lxml")
-    return soup
+from file_utils import get_file_list, get_soup
+
+#def get_soup(html):
+#    """
+#    Parameters
+#    --------------
+#    html: Path()
+#        path object to html file
+#    open html and convert to soup
+#    """
+#    with open(html, 'r') as fh:
+#        contents = fh.read()
+#        soup = BeautifulSoup(contents, features="lxml")
+#    return soup
 
 def get_descendants_of_tag_txt(html, tag='ul'):
     """
