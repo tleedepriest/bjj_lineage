@@ -103,7 +103,7 @@ def main(html_dir, txt_dir):
     -------------
     None
     """     
-    htmls = [x for x in Path(html_dir).glob('**/*') if x.is_file()]
+    htmls = get_file_list(html_dir)
     for html in htmls:
         print(html)
         print('\n'*5)
