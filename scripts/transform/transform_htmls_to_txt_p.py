@@ -11,19 +11,6 @@ sys.path.insert(0, str(utils_abs_dir_path))
 
 from file_utils import get_file_list, get_soup
 
-#def get_soup(html):
-#    """
-#    Parameters
-#    --------------
-#    html: Path()
-#        path object to html file
-#    open html and convert to soup
-#    """
-#    with open(html, 'r') as fh:
-#        contents = fh.read()
-#        soup = BeautifulSoup(contents, features="lxml")
-#    return soup
-
 def get_descendants_of_tag_txt(html, tag='ul'):
     """
     Parameters
@@ -105,13 +92,13 @@ def main(html_dir, txt_dir):
     """     
     htmls = get_file_list(html_dir)
     for html in htmls:
-        print(html)
-        print('\n'*5)
-        txt_path = Path(txt_dir) / Path(Path(html).stem + '.txt')
-        ul = get_descendants_of_tag_txt(html)
-        #tag_txt = get_all_siblings_tag_txt(html)
-        
-        #print(tag_txt)
+        p_dir = Path(txt_dir) / 'p_tags'
+        txt_path = p_dir / Path(Path(html).stem + '_p_tags.txt')
+        p_dir.mkdir(parents=True, exist_ok=True)
+        #ul = get_descendants_of_tag_txt(html)
+        tag_txt = get_all_siblings_tag_txt(html)
+        with open(txt_path, 'w') as fh:
+            fh.write(tag_txt)
 
 if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2])
