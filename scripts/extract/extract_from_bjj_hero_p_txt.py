@@ -13,6 +13,7 @@ sys.path.insert(0, str(utils_abs_dir_path))
 
 from file_utils import get_file_list, get_path_txt, get_path_lines
 
+
 def remove_xao(entity):
     return entity.replace(u'\xa0', u' ')
 
@@ -70,16 +71,16 @@ def extract_lineage(txt):
     match: str
     """
     # found 4 with spelling error missing e
-    # If multiple lineages, then will have 1 after it
+    # Will treat multiple lineages in seperate DB adn file
     # format of lineage below
     # root_name > next_name > next_name
-    pattern = re.compile(r"Line?age:(.+)\s|Lineage 1:(.+)\s")
+    pattern = re.compile(r"Line?age ?:(.+)\s")
     match = re.search(pattern, txt)
     if match is not None:
         return match.group(1)
     return None
 
-def main(txt_dir, dedupe_mapping_path):
+def main(txt_dir, dedupe_mapping_path, outpath):
     """
     Parameters
     -------------
@@ -103,14 +104,19 @@ def main(txt_dir, dedupe_mapping_path):
     # each chunk of entities seperated by newline
     mapping_lines = get_path_lines(Path(dedupe_mapping_path))
     mapping_lines = [remove_xao(ent) for ent in mapping_lines]
+    
+    # Dict[str, List[str, str, ..]]
     mapping = get_dedupe_mapping(mapping_lines)
+    # Needed each value in List[str] to be the key
     inverted_mapping = invert_mapping(mapping)
-    print(inverted_mapping)
+    
     txt_files = get_file_list(txt_dir)
+    txt_file_strings = [str(txt_file) for txt_file in txt_files]
+    
     # make a list of unique entities so that we can analyze and perform some
     # manual deduplication
     # entities = []
-
+    clean_lin_paths = []
     for txt_file in txt_files:
         txt = get_path_txt(txt_file)
         lin = extract_lineage(txt)
@@ -127,7 +133,15 @@ def main(txt_dir, dedupe_mapping_path):
                     entity = inverted_mapping[entity]
                 clean_lin_path.append(entity)
             print(clean_lin_path)
-    #pd.DataFrame({"entity": entities_deduped}).to_csv(outpath, index=False)
+            # for some reason they sometimes skip the root
+            if clean_lin_path[0] == "Carlos Gracie Senior":
+                clean_lin_path.insert(0, "Mitsuyo Maeda")
+            clean_lin_paths.append(', '.join(clean_lin_path))
+        else:
+            clean_lin_paths.append("no path")
+    pd.DataFrame(
+            {"file_path": txt_file_strings,
+             "lineage": clean_lin_paths}).to_csv(outpath, index=False)
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2])
+    main(sys.argv[1], sys.argv[2], sys.argv[3])
