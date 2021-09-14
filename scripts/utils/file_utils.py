@@ -4,6 +4,16 @@ convienence functions for retrieving files
 from pathlib import Path
 from bs4 import BeautifulSoup
 
+def get_path_lines(path_obj):
+    """
+    return lines of text file from path obj
+    """
+    with path_obj.open() as fh:
+        lines = fh.readlines()
+        return [line.rstrip() for line in lines]
+            
+
+
 def get_file_list(path_to_dir):
         """
         return all files in a given directory
@@ -17,7 +27,6 @@ def get_path_txt(path_obj):
     with path_obj.open() as fh:
         contents = fh.read()
     return contents
-
 
 def get_soup(html):
     """
