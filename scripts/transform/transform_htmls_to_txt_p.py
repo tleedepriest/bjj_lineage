@@ -103,5 +103,3 @@ def main(html_dir, txt_dir):
 if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2])
 
-
-
