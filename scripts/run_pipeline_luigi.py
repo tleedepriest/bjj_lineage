@@ -5,15 +5,17 @@ muscle memory and test
 import luigi
 import sys
 from pathlib import Path
+
 import scrapers.get_fighter_links_from_bjj_heros
 import scrapers.get_fighters_html
 
-# takes in Task class
+import transform.transform_htmls_to_txt_p
+import extract.extract_from_bjj_hero_p_txt
+
 class GenerateFighterLinksCSV(luigi.Task):
     """
     visits bjjheroes and generates a csv of fighters.
     """
-    # define what is being made
     def output(self):
         return luigi.LocalTarget('generated_data/bjj_fighter_links.csv')
 
@@ -22,8 +24,6 @@ class GenerateFighterLinksCSV(luigi.Task):
                 "https://www.bjjheroes.com/a-z-bjj-fighters-list",
                 self.output().path)
 
-# different than above, because this will have a
-# dependency unlike Generate Words
 class RequestSaveHTML(luigi.Task):
     """
     reads csv of fighters and writes out html files of each fighter.
@@ -38,22 +38,44 @@ class RequestSaveHTML(luigi.Task):
     def run(self):
         scrapers.get_fighters_html.main(
                             self.input().path,
-                            Path('generated_data/htmls')
-                            )
+                            Path('generated_data/htmls'))
 
-# extract all the ptags from the html and write them to a seperate txt file
-class TransformHTMLToPTags():
+        # write empty file to signify that task has finished.
+        with self.output().open('w') as fh:
+            fh.write('')
 
-#extract the lineage from the text file, perform preprocessing on tags
-class ExtractLineageFromPTags():
+class TransformHTMLToTxtPTags(luigi.Task):
+    def requires(self):
+        return RequestSaveHTML()
+    
+    def output(self):
+        return luigi.LocalTarget('markers/transform_htmlsto_txt_p')
+
+    def run(self):
+        transform.transform_htmls_to_txt_p.main(
+                Path('generated_data/htmls'),
+                Path('transformed_data/txt_section/p_tags'))
+
+        with self.output().open('w') as fh:
+            fh.write('')
+
+class ExtractLineageFromPTags(luigi.Task): 
+    def requires(self):
+        return TransformHTMLToTxtPTags()
+    
+    def output(self):
+        return luigi.LocalTarget('transformed_data/clean_lineage_paths.csv')
+
+    def run(self):
+        extract.extract_from_bjj_hero_p_txt.main(
+                Path('transformed_data/txt_section/p_tags'),
+                self.output().path)
 
 # load lineage into database using clean_lineage_paths.csv
 # create entity-relation db Here
 class LoadLineageIntoDataBase():
+    pass
 
-
-
- 
 if __name__ == "__main__":
     luigi.run()
 
