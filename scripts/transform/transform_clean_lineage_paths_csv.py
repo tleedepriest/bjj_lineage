@@ -114,6 +114,8 @@ def main(in_path, out_path):
         "entity_id": entity_ids,
         "parent_id": parent_ids,
         "entity":entities})
+    
+    entity_df.to_csv(out_path, index=False)
 
 if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2])
