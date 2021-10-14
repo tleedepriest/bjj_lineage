@@ -1,4 +1,4 @@
-# bjj_lineage
+# Brazilian Jiu-Jitsu "Family Tree"
 
 ## How to Run Pipeline
 
