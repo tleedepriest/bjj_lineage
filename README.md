@@ -8,5 +8,9 @@ run `python3 scripts/run_pipeline_luigi.py TransformLineagePathsToParentChild --
 
 to run the entire pipeline. This will save files to a local file system. Please report any errors to me. The visualization is not yet added to the pipeline.
 
+## Architecture of Pipeline
+
+to-do
+
 ## Final Output of Pipeline
 ![](hierarchy_kk.png)
