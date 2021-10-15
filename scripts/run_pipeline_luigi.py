@@ -6,6 +6,7 @@ import os
 import sys
 from pathlib import Path
 import luigi
+from luigi.contrib.external_program import ExternalProgramTask
 
 import scrapers.get_fighter_links_from_bjj_heros
 import scrapers.get_fighters_html
@@ -48,17 +49,20 @@ class ForceableTask(luigi.Task):
                 if len(tasks) == 0:
                     done = True
 
-class GenerateFighterLinksCSV(luigi.Task):
+class GenerateFighterLinksCSV(ExternalProgramTask):
     """
     visits bjjheroes and generates a csv of fighters.
     """
     def output(self):
         return luigi.LocalTarget('generated_data/bjj_fighter_links.csv')
 
-    def run(self):
-        scrapers.get_fighter_links_from_bjj_heros.main(
+    def program_args(self):
+        return [
+                "python", 
+                "scripts/scrapers/get_fighter_links_from_bjj_heros.py", 
                 "https://www.bjjheroes.com/a-z-bjj-fighters-list",
-                self.output().path)
+                self.output().path
+                ]
 
 class RequestSaveHTML(luigi.Task):
     """
@@ -119,6 +123,15 @@ class TransformLineagePathsToParentChild(ForceableTask):
         transform.transform_clean_lineage_paths_csv.main(
                 self.input().path,
                 self.output().path)
+
+
+class RunPipeline(luigi.WrapperTask):
+    def requires(self):
+        yield GenerateFighterLinksCSV()
+        yield RequestSaveHTML()
+        yield TransformHTMLToTxtPTags()
+        yield ExtractLineageFromPTags()
+        yield TransformLineagePathsToParentChild()
 
 # load lineage into database using clean_lineage_paths.csv
 # create entity-relation db Here
