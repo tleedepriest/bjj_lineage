@@ -102,7 +102,7 @@ def main(in_path, out_path):
                     entities.append(ent)
                     unique_id+=1
                     if prev_ind == None:
-                        parent_ids.append(np.nan)
+                        parent_ids.append(-1)
                     else:
                         # mapping allows me to convienently access parent_id
                         # here
