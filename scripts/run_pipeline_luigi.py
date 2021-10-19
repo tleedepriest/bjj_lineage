@@ -4,11 +4,14 @@ muscle memory and test
 """
 import os
 import sys
+
 from pathlib import Path
+import pandas as pd
+import requests
+
 import luigi
 from luigi.contrib.external_program import ExternalProgramTask
 
-import scrapers.get_fighter_links_from_bjj_heros
 import scrapers.get_fighters_html
 
 import transform.transform_htmls_to_txt_p
@@ -64,25 +67,62 @@ class GenerateFighterLinksCSV(ExternalProgramTask):
                 self.output().path
                 ]
 
-class RequestSaveHTML(luigi.Task):
+# https://stackoverflow.com/questions/54701697/how-to-check-output-dynamically-with-luigi
+class DownloadHTML(luigi.Task):
     """
-    reads csv of fighters and writes out html files of each fighter.
-    writes out marker file to indicate it is finished with task
+    Downloads a single HTML file for a given fighter
     """
+    first_name = luigi.Parameter()
+    last_name = luigi.Parameter()
+    link = luigi.Parameter()
+
+    def output(self):
+        return luigi.LocalTarget(
+                f"generated_data/htmls/{self.first_name}_{self.last_name}.html")
+    
+    def run(self):
+        response = requests.get(self.link)
+        with open(self.output().path, 'wb') as fh:
+            fh.write(response.content)
+
+class DynamicDownloadHTML(luigi.Task):
+    
+    def output(self):
+        return self.input()
+
     def requires(self):
         return GenerateFighterLinksCSV()
 
-    def output(self):
-        return luigi.LocalTarget('markers/get_fighters_html')
-
     def run(self):
-        scrapers.get_fighters_html.main(
-                            self.input().path,
-                            Path('generated_data/htmls'))
+        fighter_links_path = self.input().path
+        fighter_df = pd.read_csv(fighter_links_path)
+        for (first_name, last_name, link) in zip(fighter_df['first_name'].tolist(),fighter_df['last_name'].tolist(),fighter_df['link'].tolist()):
+            # clean names of path characters
+            # remove spaces from first and last name
+            # to remove space from filenames
+            first_name = first_name.replace("/", "").strip().replace(" ", "_")
+            last_name = last_name.replace("/", "").strip().replace(" ", "_")
+            yield(DownloadHTML(first_name=first_name, last_name=last_name, link=link))
 
-        # write empty file to signify that task has finished.
-        with self.output().open('w') as fh:
-            fh.write('')
+#class RequestSaveHTML(luigi.Task):
+#    """
+#    reads csv of fighters and writes out html files of each fighter.
+#    writes out marker file to indicate it is finished with task
+#    """
+#    def requires(self):
+#        return GenerateFighterLinksCSV()
+#
+#    def output(self):
+#        return luigi.LocalTarget('markers/get_fighters_html')
+#
+#    def run(self):
+#        scrapers.get_fighters_html.main(
+#                            self.input().path,
+#                            Path('generated_data/htmls'))
+#
+#        # write empty file to signify that task has finished.
+#        with self.output().open('w') as fh:
+#            fh.write('')
 
 class TransformHTMLToTxtPTags(luigi.Task):
     def requires(self):
