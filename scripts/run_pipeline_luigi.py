@@ -67,6 +67,24 @@ class GenerateFighterLinksCSV(ExternalProgramTask):
                 self.output().path
                 ]
 
+class CleanFighterLinksCSV(luigi.Task):
+    """
+    Cleans the first and last names inside the csv
+    """
+    def requires(self):
+        return GenerateFighterLinksCSV()
+
+    def output(self):
+        return luigi.LocalTarget('generated_data/bjj_fighter_links_clean.csv')
+
+    def run(self):
+        df = pd.read_csv(self.input().path)
+        df['first_name'] = df['first_name'].astype(str).apply(
+                lambda name: name.replace("/", "").strip().replace(" ", "_"))
+        df['last_name'] = df['last_name'].astype(str).apply(
+                lambda name: name.replace("/", "").strip().replace(" ", "_"))
+        df.to_csv(self.output().path)
+
 # https://stackoverflow.com/questions/54701697/how-to-check-output-dynamically-with-luigi
 class DownloadHTML(luigi.Task):
     """
@@ -74,33 +92,39 @@ class DownloadHTML(luigi.Task):
     """
     first_name = luigi.Parameter()
     last_name = luigi.Parameter()
-    link = luigi.Parameter()
+    
     def requires(self):
-        return GenerateFighterLinksCSV()
+        return CleanFighterLinksCSV()
 
     def output(self):
         return luigi.LocalTarget(
                 f"generated_data/htmls/{self.first_name}_{self.last_name}.html")
-    
+        
     def run(self):
-        response = requests.get(self.link)
+        fighter_df = pd.read_csv(self.input().path)
+        fighter_df_filtered = fighter_df[(
+            df['first_name'] == self.first_name) & (df['last_name'] ==self.last_name )]
+        
+        # this will fail with first and last name are identical.
+        link = fighter_df_filtered['link'].iloc[0]
+        response = requests.get(link)
         with open(self.output().path, 'wb') as fh:
             fh.write(response.content)
 
 class TransformHTMLToTxtPTags(luigi.Task):
     
     def requires(self):
+        first_names = []
+        last_names = []
+        for filename in os.listdir("generated_data/htmls"):
+            split_name = Path(filename).stem.split("_")
+            first_name = split_name[0]
+            last_name = split_name[1]
+            first_names.append(first_name)
+            last_names.append(last_name)
 
-        fighter_df = pd.read_csv('generated_data/bjj_fighter_links.csv')
-        first_names = fighter_df['first_name'].tolist()
-        last_names = fighter_df['last_name'].tolist()
-        links = fighter_df['link'].tolist()
-        first_names = [first_name.replace("/", "").strip().replace(" ", "_") for first_name in first_names]
-        last_names = [last_name.replace("/", "").strip().replace(" ", "_") for last_name in last_names]
-        
-        return [DownloadHTML(first_name, last_name, link) for 
-                first_name, last_name, link in
-                zip(first_names, last_names, links)]
+        return [DownloadHTML(first_name, last_name) for 
+                first_name, last_name in zip(first_names, last_names)]
     
     def output(self):
         return luigi.LocalTarget('markers/transform_htmlsto_txt_p')
