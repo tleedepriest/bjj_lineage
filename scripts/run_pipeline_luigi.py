@@ -56,16 +56,131 @@ class GenerateFighterLinksCSV(ExternalProgramTask):
     """
     visits bjjheroes and generates a csv of fighters.
     """
+    def requires(self):
+        return []
+
     def output(self):
         return luigi.LocalTarget('generated_data/bjj_fighter_links.csv')
 
-    def program_args(self):
-        return [
-                "python", 
-                "scripts/scrapers/get_fighter_links_from_bjj_heros.py", 
-                "https://www.bjjheroes.com/a-z-bjj-fighters-list",
-                self.output().path
-                ]
+    def validate_scraped_table(self, data):
+        """
+        Parameters
+        --------------
+        data: pd.DataFrame()
+            dataframe before validation
+
+        Returns
+        --------------
+        None
+
+        Side Effects
+        -----------------
+        enforces simple schema rules to validate data
+        """
+        scraped = data.to_dict(orient='index')
+        
+        pattern = r'https://www\.bjjheroes\.com/a-z-bjj-fighters-list/\?p=[\d]+'
+        schema = Schema(
+                {"link": lambda link: re.match(pattern, link),
+                "first_name": lambda fn: len(fn) < 50,
+                "last_name": lambda ln: len(ln) < 50,
+                "nick_name": object,
+                "team_link": object,
+                "team": object
+                })
+        for value in scraped.values():
+            schema.validate(value)
+
+    def format_links(self, df, url):
+        """
+        link on page is relative to the url of the page
+        we visited. Need to reformat to get full link
+        """
+        df["link"] = df["link"].apply(lambda x: url+x)
+
+    def drop_redundant_cols(self, df):
+        """
+        multiple values in datafame contain same link
+        """
+        df.drop(columns=["link_", "link__"], axis=1, inplace=True)
+
+    def rename_df_cols(self, df):
+        """
+        rename the columns of the dictionary    
+        """
+        df.columns=["first_name", "link", "last_name",
+                "link_", "nick_name", "link__", "team", "team_link"]
+
+    def get_df_from_dict(self, dictionary_of_rows):
+        """
+        Creates pandas DF and then writed DF to csv
+        """
+        df = pd.DataFrame.from_dict(dictionary_of_rows, orient='index')
+        return df
+
+    def get_webpage_contents(self, page_url):
+        """opens browser, visits url, waits for javascript to load"""
+        driver = webdriver.Firefox()
+        driver.get(page_url)
+        # wait so the page can load
+        driver.implicitly_wait(5)
+
+        # want to scroll on page so the cookies window goes away
+        # and doesn't end up in csv
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        contents = driver.page_source
+        driver.quit()
+        return contents
+
+    def get_link_from_td_element(self, td_element):
+        "extracts link from td link, if available"
+        a_tag = td_element.a
+        if a_tag is not None:
+            link = a_tag['href']
+        else:
+            link = 'None'
+        return link
+    def run(self):
+
+        data = {}
+        driver = webdriver.Firefox()
+        contents = self.get_webpage_contents("https://www.bjjheroes.com/a-z-bjj-fighters-list")
+        soup = BeautifulSoup(contents, 'lxml')
+        tds = soup.find_all('td')
+        
+        row = []
+        num_plus_one = 1
+        for num, td in enumerate(tds):
+            
+            text = td.text
+            link = self.get_link_from_td_element(td)
+            
+            row.append(text)
+            row.append(link)
+            
+            # four columns in the table, 
+            # so want to create new key, 
+            # i.e. subsequent row in df, 
+            # per four td elements
+            row_mod = num_plus_one%4
+            # only correct every 4th number
+            possible_row_num = int(num/4)
+            if row_mod==0:
+                
+                row_num = possible_row_num
+                # if you dont make a copy, 
+                # then get all same values in dictionary!
+                data[f"row_{row_num}"] = row.copy()
+                
+                row.clear()
+            num_plus_one+=1
+
+        df = self.get_df_from_dict(data)
+        self.rename_df_cols(df)
+        self.drop_redundant_cols(df)
+        self.format_links(df, url)
+        self.validate_scraped_table(df)
+        df.to_csv(self.output().path)
 
 class CleanFighterLinksCSV(luigi.Task):
     """
