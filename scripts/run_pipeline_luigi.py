@@ -271,7 +271,7 @@ class TransformLineagePathsToParentChild(ForceableTask):
 #https://stackoverflow.com/questions/48418169/run-taska-and-run-next-tasks-with-parameters-that-returned-taska-in-luigi
 class RunAll(luigi.WrapperTask):
     def requires(self):
-        return GenerateFighterLinksCSV()
+        return CleanFighterLinksCSV()
 
     def run(self):
         df = pd.read_csv(self.input().path)
@@ -280,20 +280,10 @@ class RunAll(luigi.WrapperTask):
             yield TransformHTMLToPTagTxt(index)
             #yield ...
 
-class RunPipeline(luigi.WrapperTask):
-    
-    def requires(self):
-        yield GenerateFighterLinksCSV()
-        yield RequestSaveHTML()
-        yield TransformHTMLToTxtPTags()
-        yield ExtractLineageFromPTags()
-        yield TransformLineagePathsToParentChild()
-
 # load lineage into database using clean_lineage_paths.csv
 # create entity-relation db Here
 class LoadLineageIntoDataBase():
     pass
-
 
 if __name__ == "__main__":
     luigi.run()
