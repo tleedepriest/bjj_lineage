@@ -2,9 +2,11 @@
 This script visualizes the csv that has parent_child_relationship
 """
 import sys
+import json
 import pandas as pd
 import matplotlib.pyplot as plt
 import networkx as nx
+from networkx.readwrite import json_graph
 import plotly.graph_objects as go
 import random
 import graphviz
@@ -79,6 +81,7 @@ def main(in_path, out_image_path):
     
     ent_parent_ids = pd.read_csv(in_path)
     G = nx.Graph()
+    fig = plt.figure(figsize=(40, 40))
     #g = graphviz.Digraph()
     for ent_id, parent_id in zip(
             ent_parent_ids["entity_id"].to_list(),
@@ -86,10 +89,12 @@ def main(in_path, out_image_path):
             ):
         #g.edge(str(ent_id), str(parent_id))
         G.add_edge(ent_id, parent_id)
-    print(ent_id)
-    pos = hierarchy_pos(G,0)
-    nx.draw(G, pos=pos, node_size=1, linewidths=0.1)
-    plt.savefig("hierarchy")
+    #pos = hierarchy_pos(G,0)
+    nx.draw_kamada_kawai(G, node_size=40, linewidths=0.1)
+    data = json_graph.node_link_data(G)
+    with open('data.json', 'w') as f:
+            json.dump(data, f)
+    fig.savefig("hierarchy")
 if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2])
 
