@@ -75,6 +75,8 @@ class DownloadHTML(luigi.Task):
     first_name = luigi.Parameter()
     last_name = luigi.Parameter()
     link = luigi.Parameter()
+    def requires(self):
+        return GenerateFighterLinksCSV()
 
     def output(self):
         return luigi.LocalTarget(
@@ -85,48 +87,20 @@ class DownloadHTML(luigi.Task):
         with open(self.output().path, 'wb') as fh:
             fh.write(response.content)
 
-class DynamicDownloadHTML(luigi.Task):
-    
-    def output(self):
-        return self.input()
-
-    def requires(self):
-        return GenerateFighterLinksCSV()
-
-    def run(self):
-        fighter_links_path = self.input().path
-        fighter_df = pd.read_csv(fighter_links_path)
-        for (first_name, last_name, link) in zip(fighter_df['first_name'].tolist(),fighter_df['last_name'].tolist(),fighter_df['link'].tolist()):
-            # clean names of path characters
-            # remove spaces from first and last name
-            # to remove space from filenames
-            first_name = first_name.replace("/", "").strip().replace(" ", "_")
-            last_name = last_name.replace("/", "").strip().replace(" ", "_")
-            yield(DownloadHTML(first_name=first_name, last_name=last_name, link=link))
-
-#class RequestSaveHTML(luigi.Task):
-#    """
-#    reads csv of fighters and writes out html files of each fighter.
-#    writes out marker file to indicate it is finished with task
-#    """
-#    def requires(self):
-#        return GenerateFighterLinksCSV()
-#
-#    def output(self):
-#        return luigi.LocalTarget('markers/get_fighters_html')
-#
-#    def run(self):
-#        scrapers.get_fighters_html.main(
-#                            self.input().path,
-#                            Path('generated_data/htmls'))
-#
-#        # write empty file to signify that task has finished.
-#        with self.output().open('w') as fh:
-#            fh.write('')
-
 class TransformHTMLToTxtPTags(luigi.Task):
+    
     def requires(self):
-        return RequestSaveHTML()
+
+        fighter_df = pd.read_csv('generated_data/bjj_fighter_links.csv')
+        first_names = fighter_df['first_name'].tolist()
+        last_names = fighter_df['last_name'].tolist()
+        links = fighter_df['link'].tolist()
+        first_names = [first_name.replace("/", "").strip().replace(" ", "_") for first_name in first_names]
+        last_names = [last_name.replace("/", "").strip().replace(" ", "_") for last_name in last_names]
+        
+        return [DownloadHTML(first_name, last_name, link) for 
+                first_name, last_name, link in
+                zip(first_names, last_names, links)]
     
     def output(self):
         return luigi.LocalTarget('markers/transform_htmlsto_txt_p')
