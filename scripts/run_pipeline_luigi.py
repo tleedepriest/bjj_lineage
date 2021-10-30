@@ -90,50 +90,34 @@ class DownloadHTML(luigi.Task):
     """
     Downloads a single HTML file for a given fighter
     """
-    first_name = luigi.Parameter()
-    last_name = luigi.Parameter()
+    df_index = luigi.IntParameter()
     
     def requires(self):
         return CleanFighterLinksCSV()
 
     def output(self):
         return luigi.LocalTarget(
-                f"generated_data/htmls/{self.first_name}_{self.last_name}.html")
+                f"generated_data/htmls/{self.df_index}.html")
         
     def run(self):
         fighter_df = pd.read_csv(self.input().path)
-        fighter_df_filtered = fighter_df[(
-            df['first_name'] == self.first_name) & (df['last_name'] ==self.last_name )]
-        
-        # this will fail with first and last name are identical.
-        link = fighter_df_filtered['link'].iloc[0]
+        link = fighter_df.iloc[self.df_index]["link"]
         response = requests.get(link)
         with open(self.output().path, 'wb') as fh:
             fh.write(response.content)
 
-class TransformHTMLToTxtPTags(luigi.Task):
+class TransformHTMLToTxtPTag(luigi.Task):
     
-    def requires(self):
-        first_names = []
-        last_names = []
-        for filename in os.listdir("generated_data/htmls"):
-            split_name = Path(filename).stem.split("_")
-            first_name = split_name[0]
-            last_name = split_name[1]
-            first_names.append(first_name)
-            last_names.append(last_name)
+    df_index = luigi.IntParameter()
 
-        return [DownloadHTML(first_name, last_name) for 
-                first_name, last_name in zip(first_names, last_names)]
+    def requires(self):
+        return DownloadHTML(self.df_index)
     
     def output(self):
-        return luigi.LocalTarget('markers/transform_htmlsto_txt_p')
+        return luigi.LocalTarget(
+                f'transformed_data/txt_section/p_tags/{self.df_index}.txt')
 
     def run(self):
-        transform.transform_htmls_to_txt_p.main(
-                Path('generated_data/htmls'),
-                Path('transformed_data/txt_section/p_tags'))
-
         with self.output().open('w') as fh:
             fh.write('')
 
