@@ -4,19 +4,23 @@ muscle memory and test
 """
 import os
 import sys
-
+import re
 from pathlib import Path
 import pandas as pd
 import requests
+import lxml
+from selenium import webdriver
+from bs4 import BeautifulSoup
 
+from schema import Schema, Regex
 import luigi
+
 from luigi.contrib.external_program import ExternalProgramTask
-
 import scrapers.get_fighters_html
-
 import transform.transform_htmls_to_txt_p
 import extract.extract_from_bjj_hero_p_txt
 import transform.transform_clean_lineage_paths_csv
+
 
 #https://stackoverflow.com/questions/59842469/luigi-is-there-a-way-to-pass-false-to-a-bool-parameter-from-the-command-line
 #https://github.com/spotify/luigi/issues/595
@@ -140,6 +144,7 @@ class GenerateFighterLinksCSV(ExternalProgramTask):
         else:
             link = 'None'
         return link
+    
     def run(self):
 
         data = {}
@@ -221,7 +226,7 @@ class DownloadHTML(luigi.Task):
         with open(self.output().path, 'wb') as fh:
             fh.write(response.content)
 
-class TransformHTMLToTxtPTag(luigi.Task):
+class TransformHTMLToPTagTxt(luigi.Task):
     
     df_index = luigi.IntParameter()
 
@@ -236,9 +241,11 @@ class TransformHTMLToTxtPTag(luigi.Task):
         with self.output().open('w') as fh:
             fh.write('')
 
-class ExtractLineageFromPTags(luigi.Task): 
+class ExtractLineageFromPTag(luigi.Task):
+    df_index = luigi.IntParameter()
+
     def requires(self):
-        return TransformHTMLToTxtPTags()
+        return TransformHTMLToTxtPTag(self.df_index)
     
     def output(self):
         return luigi.LocalTarget('transformed_data/clean_lineage_paths.csv')
@@ -261,8 +268,19 @@ class TransformLineagePathsToParentChild(ForceableTask):
                 self.input().path,
                 self.output().path)
 
+class RunAll(luigi.WrapperTask):
+    def requires(self):
+        return GenerateFighterLinksCSV()
+
+    def run(self):
+        df = pd.read_csv(self.input().path)
+        for index in df.index.values():
+            yield DownloadHTML(index)
+            yield TransformHTMLToPTagTxt(index)
+            #yield ...
 
 class RunPipeline(luigi.WrapperTask):
+    
     def requires(self):
         yield GenerateFighterLinksCSV()
         yield RequestSaveHTML()
