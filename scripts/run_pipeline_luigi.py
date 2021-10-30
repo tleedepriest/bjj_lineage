@@ -268,6 +268,7 @@ class TransformLineagePathsToParentChild(ForceableTask):
                 self.input().path,
                 self.output().path)
 
+#https://stackoverflow.com/questions/48418169/run-taska-and-run-next-tasks-with-parameters-that-returned-taska-in-luigi
 class RunAll(luigi.WrapperTask):
     def requires(self):
         return GenerateFighterLinksCSV()
