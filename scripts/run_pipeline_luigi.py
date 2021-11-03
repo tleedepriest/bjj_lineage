@@ -188,6 +188,8 @@ class GenerateFighterLinksCSV(ExternalProgramTask):
         self.validate_scraped_table(df)
         df.to_csv(self.output().path)
 
+# could use this task to perform more cleaning functions on the individual
+# columns
 class CleanFighterLinksCSV(luigi.Task):
     """
     Cleans the first and last names inside the csv
@@ -228,7 +230,7 @@ class DownloadHTML(luigi.Task):
                 f"generated_data/htmls/{self.df_index}.html")
         
     def run(self):
-        Path(self.output().path).parent.mkdir(exist_ok=True)
+        Path(self.output().path).parent.mkdir(exist_ok=True, parents=True)
         fighter_df = pd.read_csv(self.input().path)
         link = fighter_df.iloc[self.df_index]["link"]
         response = requests.get(link)
@@ -236,7 +238,10 @@ class DownloadHTML(luigi.Task):
             fh.write(response.content)
 
 class TransformHTMLToPTagTxt(luigi.Task):
-    
+    """
+    This extracts all the ptags from the html files, which contains
+    information we want like lineage and more.
+    """
     df_index = luigi.IntParameter()
 
     def requires(self):
@@ -246,9 +251,53 @@ class TransformHTMLToPTagTxt(luigi.Task):
         return luigi.LocalTarget(
                 f'transformed_data/txt_section/p_tags/{self.df_index}.txt')
 
+    def get_all_siblings_tag_txt(self, html, tag='p'):
+        """
+        Parameters
+        ------------
+        html: Path()
+            Path object pointing to hrml file
+
+        tag: str
+            the name of the tag you want to find. Will find the first
+            element and all of its siblings.
+
+        Returns
+        ------------
+        ' '.join(tag_txt): str
+            returns string representing all paragraph txt
+            in the html file
+        """
+        tag_txt = []
+        soup = get_soup(html)
+        next_sib = soup.find(tag)
+
+        while True:
+            try:
+                next_sib = next_sib.next_sibling
+            except AttributeError: # no more siblings
+                break
+
+            # I think this could be improved modeling the
+            # function above...I believe this is a Navigatable
+            # string
+
+            try:
+                name = next_sib.name
+            except AttributeError:
+                name = ""
+            
+            if name == tag:
+                text = next_sib.text
+                tag_txt.append(text)
+
+        return '\n'.join(tag_txt)
+    
     def run(self):
+        Path(self.output().path).parent.mkdir(exist_ok=True, parents=True)
+        tag_text = self.get_all_siblings_tag_txt(self.input().path)
         with self.output().open('w') as fh:
-            fh.write('')
+            fh.write(tag_text)
 
 class ExtractLineageFromPTag(luigi.Task):
     """
@@ -263,7 +312,8 @@ class ExtractLineageFromPTag(luigi.Task):
     def output(self):
         return luigi.LocalTarget('transformed_data/clean_lineage_paths.csv')
 
-    def run(self):
+    def run(self): 
+        Path(self.output().path).parent.mkdir(exist_ok=True)
         extract.extract_from_bjj_hero_p_txt.main(
                 Path('transformed_data/txt_section/p_tags'),
                 Path('manual_data/deduplication.txt'),
