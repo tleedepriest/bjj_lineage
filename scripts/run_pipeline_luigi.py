@@ -149,7 +149,8 @@ class GenerateFighterLinksCSV(ExternalProgramTask):
 
         data = {}
         driver = webdriver.Firefox()
-        contents = self.get_webpage_contents("https://www.bjjheroes.com/a-z-bjj-fighters-list")
+        url = "https://www.bjjheroes.com/a-z-bjj-fighters-list"
+        contents = self.get_webpage_contents(url)
         soup = BeautifulSoup(contents, 'lxml')
         tds = soup.find_all('td')
         
@@ -163,9 +164,9 @@ class GenerateFighterLinksCSV(ExternalProgramTask):
             row.append(text)
             row.append(link)
             
-            # four columns in the table, 
-            # so want to create new key, 
-            # i.e. subsequent row in df, 
+            # four columns in the table,
+            # so want to create new key,
+            # i.e. subsequent row in df,
             # per four td elements
             row_mod = num_plus_one%4
             # only correct every 4th number
@@ -191,18 +192,25 @@ class CleanFighterLinksCSV(luigi.Task):
     """
     Cleans the first and last names inside the csv
     """
+    
     def requires(self):
         return GenerateFighterLinksCSV()
 
     def output(self):
         return luigi.LocalTarget('generated_data/bjj_fighter_links_clean.csv')
 
+    def clean_name(self, name):
+        return name.replace("/", "").strip().replace(" ", "_")
+    
     def run(self):
+        
         df = pd.read_csv(self.input().path)
-        df['first_name'] = df['first_name'].astype(str).apply(
-                lambda name: name.replace("/", "").strip().replace(" ", "_"))
-        df['last_name'] = df['last_name'].astype(str).apply(
-                lambda name: name.replace("/", "").strip().replace(" ", "_"))
+        
+        df['first_name'] = df['first_name'].astype(str).map(
+                self.clean_name)
+        df['last_name'] = df['last_name'].astype(str).map(
+                self.clean_name)
+        
         df.to_csv(self.output().path)
 
 # https://stackoverflow.com/questions/54701697/how-to-check-output-dynamically-with-luigi
@@ -220,6 +228,7 @@ class DownloadHTML(luigi.Task):
                 f"generated_data/htmls/{self.df_index}.html")
         
     def run(self):
+        Path(self.output().path).parent.mkdir(exist_ok=True)
         fighter_df = pd.read_csv(self.input().path)
         link = fighter_df.iloc[self.df_index]["link"]
         response = requests.get(link)
@@ -242,6 +251,10 @@ class TransformHTMLToPTagTxt(luigi.Task):
             fh.write('')
 
 class ExtractLineageFromPTag(luigi.Task):
+    """
+    this extracts the lineage from the PTags AND deduplicates names
+    AND cleans names...should probably break this task up into a few more.
+    """
     df_index = luigi.IntParameter()
 
     def requires(self):
@@ -270,15 +283,18 @@ class TransformLineagePathsToParentChild(ForceableTask):
 
 #https://stackoverflow.com/questions/48418169/run-taska-and-run-next-tasks-with-parameters-that-returned-taska-in-luigi
 class RunAll(luigi.WrapperTask):
+    def complete(self):
+        return False
+
     def requires(self):
-        return CleanFighterLinksCSV()
+        yield GenerateFighterLinksCSV()
+        yield CleanFighterLinksCSV()
 
     def run(self):
-        df = pd.read_csv(self.input().path)
-        for index in df.index.values():
+        df = pd.read_csv('generated_data/bjj_fighter_links_clean.csv')
+        for index in df.index.to_numpy():
             yield DownloadHTML(index)
             yield TransformHTMLToPTagTxt(index)
-            #yield ...
 
 # load lineage into database using clean_lineage_paths.csv
 # create entity-relation db Here
