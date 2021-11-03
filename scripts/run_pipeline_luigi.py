@@ -10,7 +10,7 @@ import pandas as pd
 import requests
 import lxml
 from selenium import webdriver
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag, NavigableString
 
 from schema import Schema, Regex
 import luigi
@@ -21,6 +21,8 @@ import transform.transform_htmls_to_txt_p
 import extract.extract_from_bjj_hero_p_txt
 import transform.transform_clean_lineage_paths_csv
 
+
+from utils.file_utils import get_file_list, get_soup
 
 #https://stackoverflow.com/questions/59842469/luigi-is-there-a-way-to-pass-false-to-a-bool-parameter-from-the-command-line
 #https://github.com/spotify/luigi/issues/595
@@ -334,7 +336,7 @@ class TransformLineagePathsToParentChild(ForceableTask):
 #https://stackoverflow.com/questions/48418169/run-taska-and-run-next-tasks-with-parameters-that-returned-taska-in-luigi
 class RunAll(luigi.WrapperTask):
     def complete(self):
-        return False
+        return Path('RunAll.marker').exists()
 
     def requires(self):
         yield GenerateFighterLinksCSV()
@@ -346,6 +348,9 @@ class RunAll(luigi.WrapperTask):
             yield DownloadHTML(index)
             yield TransformHTMLToPTagTxt(index)
 
+        # use this to signify that task is complete.
+        with open('RunAll.marker', 'w') as fh:
+            fh.write('')
 # load lineage into database using clean_lineage_paths.csv
 # create entity-relation db Here
 class LoadLineageIntoDataBase():
