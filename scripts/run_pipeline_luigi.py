@@ -5,6 +5,7 @@ muscle memory and test
 import os
 import sys
 import re
+import unicodedata
 from pathlib import Path
 import pandas as pd
 import requests
@@ -22,7 +23,8 @@ import extract.extract_from_bjj_hero_p_txt
 import transform.transform_clean_lineage_paths_csv
 
 
-from utils.file_utils import get_file_list, get_soup
+from utils.file_utils import get_file_list, get_soup, \
+        get_path_lines, get_path_txt
 
 #https://stackoverflow.com/questions/59842469/luigi-is-there-a-way-to-pass-false-to-a-bool-parameter-from-the-command-line
 #https://github.com/spotify/luigi/issues/595
@@ -301,25 +303,134 @@ class TransformHTMLToPTagTxt(luigi.Task):
         with self.output().open('w') as fh:
             fh.write(tag_text)
 
-class ExtractLineageFromPTag(luigi.Task):
+class ExtractLineageFromPTags(luigi.Task):
     """
     this extracts the lineage from the PTags AND deduplicates names
     AND cleans names...should probably break this task up into a few more.
     """
-    df_index = luigi.IntParameter()
+    clean_fighters_path = luigi.Parameter()
 
-    def requires(self):
-        return TransformHTMLToTxtPTag(self.df_index)
+    def requires(self): 
+        df = pd.read_csv(self.clean_fighters_path)
+        return [TransformHTMLToPTagTxt(df_index) for df_index in
+                df.index.to_numpy()]
+
     
     def output(self):
         return luigi.LocalTarget('transformed_data/clean_lineage_paths.csv')
 
+    def remove_xao(self, entity):
+        return entity.replace(u'\xa0', u' ')
+
+    def clean_entity(self, entity):
+        # remove ( and spaces at beginning
+        if not entity[0].isalpha():
+            entity = entity[1:]
+            entity = entity.lstrip()
+        return entity
+
+    def strip_accents(self, s):
+           return ''.join(c for c in unicodedata.normalize('NFD', s)
+                                     if unicodedata.category(c) != 'Mn')
+
+    def invert_mapping(self, mapping):
+        inverted_mapping = {}
+        for key, value in mapping.items():
+            for ent in value:
+                inverted_mapping[ent] = key
+        return inverted_mapping
+
+
+    def get_dedupe_mapping(self, mapping_lines):
+        """
+        Parameters
+        -------------
+        mapping_string: str
+            string containing contents to produce dedupe mapping dict
+        """
+        # split on newline, if two blank values occur
+        # in a row, then this means that the next value
+        # is a key
+        mapping = {}
+        key = mapping_lines[0]
+        mapping[key] = []
+        for num, line in enumerate(mapping_lines[1:]):
+            # need to shift num over since shifting mapping lins over
+            num+=1
+            if line == "":
+                key = mapping_lines[num+1]
+                mapping[key] = []
+            else:
+                mapping[key].append(line)
+        return mapping
+    
+    def extract_lineage(self, txt):
+        """
+        Parameters
+        -----------
+        txt: str
+            bjj heros p sections sep by new line
+
+        Returns
+        -----------
+        match: str
+        """
+        # found 4 with spelling error missing e
+        # Will treat multiple lineages in seperate DB adn file
+        # format of lineage below
+        # root_name > next_name > next_name
+        pattern = re.compile(r"Line?age ?:(.+)\s")
+        match = re.search(pattern, txt)
+        if match is not None:
+            return match.group(1)
+        return None
+    
     def run(self): 
         Path(self.output().path).parent.mkdir(exist_ok=True)
-        extract.extract_from_bjj_hero_p_txt.main(
-                Path('transformed_data/txt_section/p_tags'),
-                Path('manual_data/deduplication.txt'),
-                self.output().path)
+        
+        # each chunk of entities seperated by newline
+        mapping_lines = get_path_lines(Path('manual_data/deduplication.txt'))
+        mapping_lines = [self.remove_xao(ent) for ent in mapping_lines]
+        
+        # Dict[str, List[str, str, ..]]
+        mapping = self.get_dedupe_mapping(mapping_lines)
+        # Needed each value in List[str] to be the key
+        inverted_mapping = self.invert_mapping(mapping)
+        
+        txt_files = get_file_list('transformed_data/txt_section/p_tags')
+        txt_file_strings = [str(txt_file) for txt_file in txt_files]
+        
+        # make a list of unique entities so that we can analyze and perform some
+        # manual deduplication
+        # entities = []
+        clean_lin_paths = []
+        for txt_file in txt_files:
+        
+            txt = get_path_txt(txt_file)
+            lin = self.extract_lineage(txt)
+            if lin is not None:
+                # child of parent followed by > symbol
+                lin_path = lin.split(">")
+                clean_lin_path = []
+                for entity in lin_path:
+                    entity = entity.lstrip().rstrip()
+                    entity = self.strip_accents(entity)
+                    entity = self.clean_entity(entity)
+                    entity = self.remove_xao(entity)
+                    if entity in inverted_mapping.keys():
+                        entity = inverted_mapping[entity]
+                    clean_lin_path.append(entity)
+                print(clean_lin_path)
+                # for some reason they sometimes skip the root
+                if clean_lin_path[0] == "Carlos Gracie Senior":
+                    clean_lin_path.insert(0, "Mitsuyo Maeda")
+                clean_lin_paths.append(', '.join(clean_lin_path))
+            else:
+                clean_lin_paths.append("no path")
+        pd.DataFrame(
+                {"file_path": txt_file_strings,
+                 "lineage": clean_lin_paths}).to_csv(
+                         self.output().path, index=False)
 
 class TransformLineagePathsToParentChild(ForceableTask):
     def requires(self):
@@ -350,7 +461,8 @@ class RunAll(luigi.WrapperTask):
         for index in df.index.to_numpy():
             yield DownloadHTML(index)
             yield TransformHTMLToPTagTxt(index)
-
+        
+        yield ExtractLineageFromPTags(self.input().path)
         # use this to signify that task is complete.
         with open('RunAll.marker', 'w') as fh:
             fh.write('')
