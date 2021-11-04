@@ -335,15 +335,18 @@ class TransformLineagePathsToParentChild(ForceableTask):
 
 #https://stackoverflow.com/questions/48418169/run-taska-and-run-next-tasks-with-parameters-that-returned-taska-in-luigi
 class RunAll(luigi.WrapperTask):
+    
     def complete(self):
-        return Path('RunAll.marker').exists()
+        return self.output().exists()
+    
+    def output(self):
+        return luigi.LocalTarget('RunAll.marker')
 
     def requires(self):
-        yield GenerateFighterLinksCSV()
-        yield CleanFighterLinksCSV()
+        return CleanFighterLinksCSV()
 
     def run(self):
-        df = pd.read_csv('generated_data/bjj_fighter_links_clean.csv')
+        df = pd.read_csv(self.input().path)
         for index in df.index.to_numpy():
             yield DownloadHTML(index)
             yield TransformHTMLToPTagTxt(index)
