@@ -68,7 +68,8 @@ class GenerateFighterLinksCSV(ExternalProgramTask):
         return []
 
     def output(self):
-        return luigi.LocalTarget('generated_data/bjj_fighter_links.csv')
+        return luigi.LocalTarget(
+                'generated_data/bjj_heroes/bjj_fighter_links.csv')
 
     def validate_scraped_table(self, data):
         """
@@ -150,7 +151,7 @@ class GenerateFighterLinksCSV(ExternalProgramTask):
         return link
     
     def run(self):
-
+        Path(self.output().path).mkdir(exist_ok=True, parents=True)
         data = {}
         driver = webdriver.Firefox()
         url = "https://www.bjjheroes.com/a-z-bjj-fighters-list"
@@ -203,13 +204,14 @@ class CleanFighterLinksCSV(luigi.Task):
         return GenerateFighterLinksCSV()
 
     def output(self):
-        return luigi.LocalTarget('generated_data/bjj_fighter_links_clean.csv')
+        return luigi.LocalTarget(
+                'generated_data/bjj_heroes/bjj_fighter_links_clean.csv')
 
     def clean_name(self, name):
         return name.replace("/", "").strip().replace(" ", "_")
     
     def run(self):
-        
+        Path(self.output().path).mkdir(exist_ok=True, parents=True) 
         df = pd.read_csv(self.input().path)
         
         df['first_name'] = df['first_name'].astype(str).map(
@@ -231,7 +233,7 @@ class DownloadHTML(luigi.Task):
 
     def output(self):
         return luigi.LocalTarget(
-                f"generated_data/htmls/{self.df_index}.html")
+                f"generated_data/bjj_heroes/htmls/{self.df_index}.html")
         
     def run(self):
         Path(self.output().path).parent.mkdir(exist_ok=True, parents=True)
@@ -253,7 +255,7 @@ class TransformHTMLToPTagTxt(luigi.Task):
     
     def output(self):
         return luigi.LocalTarget(
-                f'transformed_data/txt_section/p_tags/{self.df_index}.txt')
+                f'generated_data/bjj_heroes/txt_section/p_tags/{self.df_index}.txt')
 
     def get_all_siblings_tag_txt(self, html, tag='p'):
         """
@@ -317,7 +319,8 @@ class ExtractLineageFromPTags(luigi.Task):
 
     
     def output(self):
-        return luigi.LocalTarget('transformed_data/clean_lineage_paths.csv')
+        return luigi.LocalTarget(
+                'generated_data/bjj_heroes/clean_lineage_paths.csv')
 
     def remove_xao(self, entity):
         return entity.replace(u'\xa0', u' ')
@@ -389,7 +392,8 @@ class ExtractLineageFromPTags(luigi.Task):
         Path(self.output().path).parent.mkdir(exist_ok=True)
         
         # each chunk of entities seperated by newline
-        mapping_lines = get_path_lines(Path('manual_data/deduplication.txt'))
+        mapping_lines = get_path_lines(
+                Path('manual_data/bjj_heroes/deduplication.txt'))
         mapping_lines = [self.remove_xao(ent) for ent in mapping_lines]
         
         # Dict[str, List[str, str, ..]]
@@ -397,7 +401,8 @@ class ExtractLineageFromPTags(luigi.Task):
         # Needed each value in List[str] to be the key
         inverted_mapping = self.invert_mapping(mapping)
         
-        txt_files = get_file_list('transformed_data/txt_section/p_tags')
+        txt_files = get_file_list(
+                'generated_data/bjj_heroes/txt_section/p_tags')
         txt_file_strings = [str(txt_file) for txt_file in txt_files]
         
         # make a list of unique entities so that we can analyze and perform some
@@ -437,7 +442,8 @@ class TransformLineagePathsToParentChild(ForceableTask):
         return ExtractLineageFromPTags()
     
     def output(self):
-        return luigi.LocalTarget('transformed_data/entity_parent_lineage_paths.csv')
+        return luigi.LocalTarget(
+                'generated_data/bjj_heroes/entity_parent_lineage_paths.csv')
 
     def run(self):
         transform.transform_clean_lineage_paths_csv.main(
@@ -466,6 +472,7 @@ class RunAll(luigi.WrapperTask):
         # use this to signify that task is complete.
         with open('RunAll.marker', 'w') as fh:
             fh.write('')
+
 # load lineage into database using clean_lineage_paths.csv
 # create entity-relation db Here
 class LoadLineageIntoDataBase():
