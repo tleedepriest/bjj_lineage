@@ -107,8 +107,17 @@ J. J. Machado
 JJ Machado
 Jean Jaques Machado
 
+John Lewis
+J. Lewis
+
+Jorge Pereira
+J. Pereira
+
 Jose Olimpio
 Jose Olimpio (Ze Radiola)
+
+Julio Cesar Pereira
+J. Pereira
 
 Leonardo Vieira
 Leonardo Vieira (Leozinho)
@@ -117,8 +126,21 @@ Luiz Franca
 Luis Franca
 L. Franca
 
+Luis Dagmar
+Luis Dagmar (Careca)
+L. Dagmar
+
 Mitsuyo Maeda
 M. Maeda
+
+Marcelo Behring
+M. Behring
+
+Osvaldo Alves
+O. Alves
+
+Oswaldo Fadda
+O. Fadda
 
 Romero Cavalcanti
 Romero (Jacare) Cavalcanti
@@ -169,3 +191,6 @@ Draculino
 Vinicius Magalhaes (Draculino)
 Vinicius Magalhaes “Draculino”
 Vinicius Magalhaes (
+
+Waldomiro Perez
+W. Perez
