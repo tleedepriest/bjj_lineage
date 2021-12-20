@@ -60,7 +60,7 @@ class ForceableTask(luigi.Task):
                 if len(tasks) == 0:
                     done = True
 
-class GenerateFighterLinksCSV(ExternalProgramTask):
+class GenerateFighterLinksCSV(luigi.Task):
     """
     visits bjjheroes and generates a csv of fighters.
     """
@@ -451,7 +451,7 @@ class TransformLineagePathsToParentChild(ForceableTask):
                 self.output().path)
 
 #https://stackoverflow.com/questions/48418169/run-taska-and-run-next-tasks-with-parameters-that-returned-taska-in-luigi
-class RunAll(luigi.WrapperTask):
+class RunAll(luigi.Task):
     
     def complete(self):
         return self.output().exists()
@@ -460,15 +460,15 @@ class RunAll(luigi.WrapperTask):
         return luigi.LocalTarget('RunAll.marker')
 
     def requires(self):
-        return CleanFighterLinksCSV()
+        return [GenerateFighterLinksCSV(), CleanFighterLinksCSV()]
 
     def run(self):
-        df = pd.read_csv(self.input().path)
+        df = pd.read_csv(self.input()[1].path)
         for index in df.index.to_numpy():
             yield DownloadHTML(index)
             yield TransformHTMLToPTagTxt(index)
         
-        yield ExtractLineageFromPTags(self.input().path)
+        yield ExtractLineageFromPTags(self.input()[1].path)
         # use this to signify that task is complete.
         with open('RunAll.marker', 'w') as fh:
             fh.write('')
