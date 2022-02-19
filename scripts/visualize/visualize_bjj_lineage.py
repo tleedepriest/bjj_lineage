@@ -83,18 +83,24 @@ def main(in_path, out_image_path):
     G = nx.Graph()
     fig = plt.figure(figsize=(40, 40))
     #g = graphviz.Digraph()
-    for ent_id, parent_id in zip(
+    for ent_id, parent_id, ent in zip(
             ent_parent_ids["entity_id"].to_list(),
-            ent_parent_ids["parent_id"].to_list()
+            ent_parent_ids["parent_id"].to_list(),
+            ent_parent_ids["entity"].to_list()
             ):
+        ent = str(ent).replace('“', '')
+        ent = str(ent).replace('”', '')
+        ent = str(ent).replace('’', '')
         #g.edge(str(ent_id), str(parent_id))
+        G.add_node(ent_id, entity=ent)
         G.add_edge(ent_id, parent_id)
+        
     #pos = hierarchy_pos(G,0)
     nx.draw_kamada_kawai(G, node_size=40, linewidths=0.1)
     data = json_graph.node_link_data(G)
     with open('data.json', 'w') as f:
             json.dump(data, f)
-    fig.savefig("hierarchy")
+    fig.savefig(out_image_path)
 if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2])
 
