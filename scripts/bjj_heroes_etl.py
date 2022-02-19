@@ -17,10 +17,7 @@ from schema import Schema, Regex
 import luigi
 
 from luigi.contrib.external_program import ExternalProgramTask
-import scrapers.get_fighters_html
-import transform.transform_htmls_to_txt_p
-import extract.extract_from_bjj_hero_p_txt
-import transform.transform_clean_lineage_paths_csv
+import transform_clean_lineage_paths_csv
 
 
 from utils.file_utils import get_file_list, get_soup, \
@@ -151,7 +148,7 @@ class GenerateFighterLinksCSV(luigi.Task):
         return link
     
     def run(self):
-        Path(self.output().path).mkdir(exist_ok=True, parents=True)
+        Path(self.output().path).parent.mkdir(exist_ok=True, parents=True)
         data = {}
         driver = webdriver.Firefox()
         url = "https://www.bjjheroes.com/a-z-bjj-fighters-list"
@@ -191,35 +188,35 @@ class GenerateFighterLinksCSV(luigi.Task):
         self.drop_redundant_cols(df)
         self.format_links(df, url)
         self.validate_scraped_table(df)
-        df.to_csv(self.output().path)
+        df.to_csv(self.output().path, index=False)
 
 # could use this task to perform more cleaning functions on the individual
 # columns
-class CleanFighterLinksCSV(luigi.Task):
-    """
-    Cleans the first and last names inside the csv
-    """
+#class CleanFighterLinksCSV(luigi.Task):
+#    """
+#    Cleans the first and last names inside the csv
+#    """
     
-    def requires(self):
-        return GenerateFighterLinksCSV()
+#    def requires(self):
+#        return GenerateFighterLinksCSV()
+#
+#    def output(self):
+#        return luigi.LocalTarget(
+#                'generated_data/bjj_heroes/bjj_fighter_links_clean.csv')
 
-    def output(self):
-        return luigi.LocalTarget(
-                'generated_data/bjj_heroes/bjj_fighter_links_clean.csv')
-
-    def clean_name(self, name):
-        return name.replace("/", "").strip().replace(" ", "_")
+#    def clean_name(self, name):
+#        return name.replace("/", "").strip().replace(" ", "_")
     
-    def run(self):
-        Path(self.output().path).mkdir(exist_ok=True, parents=True) 
-        df = pd.read_csv(self.input().path)
+#    def run(self):
+#        Path(self.output().path).mkdir(exist_ok=True, parents=True) 
+#        df = pd.read_csv(self.input().path)
         
-        df['first_name'] = df['first_name'].astype(str).map(
-                self.clean_name)
-        df['last_name'] = df['last_name'].astype(str).map(
-                self.clean_name)
+#        df['first_name'] = df['first_name'].astype(str).map(
+#                self.clean_name)
+#        df['last_name'] = df['last_name'].astype(str).map(
+#                self.clean_name)
         
-        df.to_csv(self.output().path)
+#        df.to_csv(self.output().path)
 
 # https://stackoverflow.com/questions/54701697/how-to-check-output-dynamically-with-luigi
 class DownloadHTML(luigi.Task):
@@ -229,7 +226,7 @@ class DownloadHTML(luigi.Task):
     df_index = luigi.IntParameter()
     
     def requires(self):
-        return CleanFighterLinksCSV()
+        return GenerateFighterLinksCSV()
 
     def output(self):
         return luigi.LocalTarget(
@@ -305,10 +302,10 @@ class TransformHTMLToPTagTxt(luigi.Task):
         with self.output().open('w') as fh:
             fh.write(tag_text)
 
-class ExtractLineageFromPTags(luigi.Task):
+class ExtractFromPTags(luigi.Task):
     """
     this extracts the lineage from the PTags AND deduplicates names
-    AND cleans names...should probably break this task up into a few more.
+    AND cleans names..also extracts full_name from txt file.
     """
     clean_fighters_path = luigi.Parameter()
 
@@ -320,7 +317,7 @@ class ExtractLineageFromPTags(luigi.Task):
     
     def output(self):
         return luigi.LocalTarget(
-                'generated_data/bjj_heroes/clean_lineage_paths.csv')
+                'generated_data/bjj_heroes/extract_from_p_tags.csv')
 
     def remove_xao(self, entity):
         return entity.replace(u'\xa0', u' ')
@@ -336,6 +333,19 @@ class ExtractLineageFromPTags(luigi.Task):
            return ''.join(c for c in unicodedata.normalize('NFD', s)
                                      if unicodedata.category(c) != 'Mn')
 
+    def clean_lineage_path(self, deduped_lin_path):
+        """
+        Sometimes lineage path like this, results in pattern below
+        after splitting on > and then joining on ,
+        want to remove parenthesis, but only after dedeuplication.
+        
+        Mario Reis (> Jeferson Adam)
+        """
+        match = re.search(r"\(,", deduped_lin_path)
+        if match is not None:
+            deduped_lin_path = deduped_lin_path.replace(" (, ", ", ").replace(")", "")
+        return deduped_lin_path
+    
     def invert_mapping(self, mapping):
         inverted_mapping = {}
         for key, value in mapping.items():
@@ -366,6 +376,27 @@ class ExtractLineageFromPTags(luigi.Task):
             else:
                 mapping[key].append(line)
         return mapping
+    
+    def extract_fullname(self, txt):
+        """
+        Parameters
+        -----------
+        txt: str
+            bjj heros p sections sep by new line
+
+        Returns
+        -----------
+        match: str
+        """
+        # found 4 with spelling error missing e
+        # Will treat multiple lineages in seperate DB adn file
+        # format of lineage below
+        # root_name > next_name > next_name
+        pattern = re.compile(r"Name: ?(.+)\s", flags=re.IGNORECASE)
+        match = re.search(pattern, txt)
+        if match is not None:
+            return match.group(1)
+        return None
     
     def extract_lineage(self, txt):
         """
@@ -404,15 +435,16 @@ class ExtractLineageFromPTags(luigi.Task):
         txt_files = get_file_list(
                 'generated_data/bjj_heroes/txt_section/p_tags')
         txt_file_strings = [str(txt_file) for txt_file in txt_files]
-        
+        index_for_fighter_links = [int(float(Path(txt_file).stem)) for txt_file in txt_files]
         # make a list of unique entities so that we can analyze and perform some
         # manual deduplication
         # entities = []
         clean_lin_paths = []
-        for txt_file in txt_files:
-        
+        full_names = []
+        for txt_file in txt_files:    
             txt = get_path_txt(txt_file)
             lin = self.extract_lineage(txt)
+            full_name = self.extract_fullname(txt)
             if lin is not None:
                 # child of parent followed by > symbol
                 lin_path = lin.split(">")
@@ -425,28 +457,41 @@ class ExtractLineageFromPTags(luigi.Task):
                     if entity in inverted_mapping.keys():
                         entity = inverted_mapping[entity]
                     clean_lin_path.append(entity)
-                print(clean_lin_path)
                 # for some reason they sometimes skip the root
-                if clean_lin_path[0] == "Carlos Gracie Senior":
+                root = clean_lin_path[0]
+                if root == "Carlos Gracie Senior" or root == "Luiz Franca":
                     clean_lin_path.insert(0, "Mitsuyo Maeda")
-                clean_lin_paths.append(', '.join(clean_lin_path))
+                clean_lin_path = self.clean_lineage_path(', '.join(clean_lin_path))
+                clean_lin_paths.append(clean_lin_path)
             else:
                 clean_lin_paths.append("no path")
-        pd.DataFrame(
+            if full_name is not None:
+                full_names.append(full_name)
+            else:
+                full_names.append("no full_name")
+        df = pd.DataFrame(
                 {"file_path": txt_file_strings,
-                 "lineage": clean_lin_paths}).to_csv(
-                         self.output().path, index=False)
+                 "lineage": clean_lin_paths,
+                 "full_name": full_names,
+                 "index_for_fighter_links": index_for_fighter_links
+                 })
+        # sort to easily merge back with fighter links data
+        df = df.sort_values(by="index_for_fighter_links")
+        df.to_csv(self.output().path, index=False)
 
 class TransformLineagePathsToParentChild(ForceableTask):
+    
+    clean_fighters_path = luigi.Parameter()
+    
     def requires(self):
-        return ExtractLineageFromPTags()
+        return ExtractFromPTags(self.clean_fighters_path)
     
     def output(self):
         return luigi.LocalTarget(
                 'generated_data/bjj_heroes/entity_parent_lineage_paths.csv')
 
     def run(self):
-        transform.transform_clean_lineage_paths_csv.main(
+        transform_clean_lineage_paths_csv.main(
                 self.input().path,
                 self.output().path)
 
@@ -460,15 +505,17 @@ class RunAll(luigi.Task):
         return luigi.LocalTarget('RunAll.marker')
 
     def requires(self):
-        return [GenerateFighterLinksCSV(), CleanFighterLinksCSV()]
+        return GenerateFighterLinksCSV()
 
     def run(self):
-        df = pd.read_csv(self.input()[1].path)
+        df = pd.read_csv(self.input().path)
         for index in df.index.to_numpy():
             yield DownloadHTML(index)
             yield TransformHTMLToPTagTxt(index)
         
-        yield ExtractLineageFromPTags(self.input()[1].path)
+        yield ExtractFromPTags(self.input().path)
+        yield TransformLineagePathsToParentChild(
+                clean_fighters_path=self.input().path)
         # use this to signify that task is complete.
         with open('RunAll.marker', 'w') as fh:
             fh.write('')
