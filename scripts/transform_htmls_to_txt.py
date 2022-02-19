@@ -6,22 +6,7 @@ database.
 import sys
 from pathlib import Path
 from bs4 import BeautifulSoup
-def get_soup_from_static_html(html):
-    """
-    Parameters
-    ----------------
-    html: str/path obj
-        the path to the html file
 
-    Returns
-    -----------------
-    soup: bs4 Soup obj
-    """
-    with open(html, 'r') as fh:
-        soup = BeautifulSoup(fh, 'html.parser')
-        #contents = fh.read()
-        #soup = BeautifulSoup(contents, features='lxml')
-    return soup
 
 def main(html_dir, txt_dir, marker_file):
     """

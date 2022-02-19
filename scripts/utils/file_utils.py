@@ -41,3 +41,22 @@ def get_soup(html):
         soup = BeautifulSoup(contents, features="lxml")
     return soup
 
+def get_soup_from_static_html(html):
+    """
+    Parameters
+    ----------------
+    html: str/path obj
+        the path to the html file
+
+    Returns
+    -----------------
+    soup: bs4 Soup obj
+    """
+    with open(html, 'r') as fh:
+        soup = BeautifulSoup(fh, 'html.parser')
+        #contents = fh.read()
+        #soup = BeautifulSoup(contents, features='lxml')
+    return soup
+
+
+
