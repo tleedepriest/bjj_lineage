@@ -1,6 +1,10 @@
 # Brazilian Jiu-Jitsu "Family Tree"
 
-## About the Picture
+
+
+## About the Picture/Graph
+
+https://tleedepriest.github.io/d3test/
 
 In Brazilian Jiu-Jitsu, the concept of lineage is similar to that of a ancestral lineage. In a typical family tree, you would trace back your mother/father until you reach the very beginning. This would represent a single path in the tree. In Brazilian Jiu-Jitsu, you can  do a similar tracing, but this time **the "father/mother" is replaced with the individual who awarded you your black belt**. For a vast majority of people practicing Brazilian Jiu-Jitsu, the beginning, or **root node of the tree would be [Mitsuyo Maeda](https://en.wikipedia.org/wiki/Mitsuyo_Maeda).**
 
@@ -14,7 +18,7 @@ Note: The concept of lineage isn't necessarily as strict as the concept of ances
 
 - Please see the requirements.txt file for necessary libraries to install in virtual environment. This project was coded on XUbuntu 20.04 with Python 3.8, although the code should be OS dependent.
 
-run `python3 scripts/run_pipeline_luigi.py RunPipeline --local-scheduler`
+run `python3 scripts/bjj_heroes_etl.py RunAll --local-scheduler`
 
 to run the entire pipeline. This will save files to a local file system, including ~1200 HTML files, 1200 txt files, and some CSVs. Please report any errors to me. The visualization is not yet added to the pipeline.
 
@@ -23,4 +27,8 @@ to run the entire pipeline. This will save files to a local file system, includi
 to-do
 
 ## Final Output of Pipeline
+
+https://tleedepriest.github.io/d3test/
+
 ![](hierarchy_kk.png)
+
