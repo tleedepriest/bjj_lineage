@@ -28,12 +28,12 @@ from utils.file_utils import get_file_list, get_soup, \
 #https://stackoverflow.com/questions/34613296/how-to-reset-luigi-task-status
 class ForceableTask(luigi.Task):
     force = luigi.BoolParameter(
-            significant=False, 
+            significant=False,
             default=False,
             parsing=luigi.BoolParameter.EXPLICIT_PARSING)
 
     force_upstream = luigi.BoolParameter(
-            significant=False, 
+            significant=False,
             default=False,
             parsing=luigi.BoolParameter.EXPLICIT_PARSING)
 
@@ -51,7 +51,7 @@ class ForceableTask(luigi.Task):
                     if out.exists():
                         print(f"Removing {out.path}!")
                         os.remove(out.path)
-                if self.force_upstream is True: 
+                if self.force_upstream is True:
                     tasks+=luigi.task.flatten(tasks[0].requires())
                 tasks.pop(0)
                 if len(tasks) == 0:
@@ -84,7 +84,7 @@ class GenerateFighterLinksCSV(luigi.Task):
         enforces simple schema rules to validate data
         """
         scraped = data.to_dict(orient='index')
-        
+
         pattern = r'https://www\.bjjheroes\.com/a-z-bjj-fighters-list/\?p=[\d]+'
         schema = Schema(
                 {"link": lambda link: re.match(pattern, link),
@@ -112,7 +112,7 @@ class GenerateFighterLinksCSV(luigi.Task):
 
     def rename_df_cols(self, df):
         """
-        rename the columns of the dictionary    
+        rename the columns of the dictionary
         """
         df.columns=["first_name", "link", "last_name",
                 "link_", "nick_name", "link__", "team", "team_link"]
@@ -146,7 +146,7 @@ class GenerateFighterLinksCSV(luigi.Task):
         else:
             link = 'None'
         return link
-    
+
     def run(self):
         Path(self.output().path).parent.mkdir(exist_ok=True, parents=True)
         data = {}
@@ -155,17 +155,17 @@ class GenerateFighterLinksCSV(luigi.Task):
         contents = self.get_webpage_contents(url)
         soup = BeautifulSoup(contents, 'lxml')
         tds = soup.find_all('td')
-        
+
         row = []
         num_plus_one = 1
         for num, td in enumerate(tds):
-            
+
             text = td.text
             link = self.get_link_from_td_element(td)
-            
+
             row.append(text)
             row.append(link)
-            
+
             # four columns in the table,
             # so want to create new key,
             # i.e. subsequent row in df,
@@ -174,12 +174,12 @@ class GenerateFighterLinksCSV(luigi.Task):
             # only correct every 4th number
             possible_row_num = int(num/4)
             if row_mod==0:
-                
+
                 row_num = possible_row_num
-                # if you dont make a copy, 
+                # if you dont make a copy,
                 # then get all same values in dictionary!
                 data[f"row_{row_num}"] = row.copy()
-                
+
                 row.clear()
             num_plus_one+=1
 
@@ -196,7 +196,7 @@ class GenerateFighterLinksCSV(luigi.Task):
 #    """
 #    Cleans the first and last names inside the csv
 #    """
-    
+
 #    def requires(self):
 #        return GenerateFighterLinksCSV()
 #
@@ -206,16 +206,16 @@ class GenerateFighterLinksCSV(luigi.Task):
 
 #    def clean_name(self, name):
 #        return name.replace("/", "").strip().replace(" ", "_")
-    
+
 #    def run(self):
-#        Path(self.output().path).mkdir(exist_ok=True, parents=True) 
+#        Path(self.output().path).mkdir(exist_ok=True, parents=True)
 #        df = pd.read_csv(self.input().path)
-        
+
 #        df['first_name'] = df['first_name'].astype(str).map(
 #                self.clean_name)
 #        df['last_name'] = df['last_name'].astype(str).map(
 #                self.clean_name)
-        
+
 #        df.to_csv(self.output().path)
 
 # https://stackoverflow.com/questions/54701697/how-to-check-output-dynamically-with-luigi
@@ -223,20 +223,21 @@ class DownloadHTML(luigi.Task):
     """
     Downloads a single HTML file for a given fighter
     """
-    df_index = luigi.IntParameter()
-    
+    download_link = luigi.Parameter()
+
     def requires(self):
         return GenerateFighterLinksCSV()
 
     def output(self):
+        download_link_id = self.download_link.split("p=")[1]
         return luigi.LocalTarget(
-                f"generated_data/bjj_heroes/htmls/{self.df_index}.html")
-        
+                f"generated_data/bjj_heroes/htmls/{download_link_id}.html")
+
     def run(self):
         Path(self.output().path).parent.mkdir(exist_ok=True, parents=True)
-        fighter_df = pd.read_csv(self.input().path)
-        link = fighter_df.iloc[self.df_index]["link"]
-        response = requests.get(link)
+        #fighter_df = pd.read_csv(self.input().path)
+        #link = fighter_df.iloc[self.df_index]["link"]
+        response = requests.get(self.download_link)
         with open(self.output().path, 'wb') as fh:
             fh.write(response.content)
 
@@ -245,14 +246,15 @@ class TransformHTMLToPTagTxt(luigi.Task):
     This extracts all the ptags from the html files, which contains
     information we want like lineage and more.
     """
-    df_index = luigi.IntParameter()
+    download_link = luigi.Parameter()
 
     def requires(self):
-        return DownloadHTML(self.df_index)
-    
+        return DownloadHTML(self.download_link)
+
     def output(self):
+        download_link_id = self.download_link.split("p=")[1]
         return luigi.LocalTarget(
-                f'generated_data/bjj_heroes/txt_section/p_tags/{self.df_index}.txt')
+                f'generated_data/bjj_heroes/txt_section/p_tags/{download_link_id}.txt')
 
     def get_all_siblings_tag_txt(self, html, tag='p'):
         """
@@ -289,13 +291,13 @@ class TransformHTMLToPTagTxt(luigi.Task):
                 name = next_sib.name
             except AttributeError:
                 name = ""
-            
+
             if name == tag:
                 text = next_sib.text
                 tag_txt.append(text)
 
         return '\n'.join(tag_txt)
-    
+
     def run(self):
         Path(self.output().path).parent.mkdir(exist_ok=True, parents=True)
         tag_text = self.get_all_siblings_tag_txt(self.input().path)
@@ -309,12 +311,13 @@ class ExtractFromPTags(luigi.Task):
     """
     clean_fighters_path = luigi.Parameter()
 
-    def requires(self): 
+    def requires(self):
         df = pd.read_csv(self.clean_fighters_path)
-        return [TransformHTMLToPTagTxt(df_index) for df_index in
-                df.index.to_numpy()]
+        links = df["link"].astype(str).tolist()
+        return [TransformHTMLToPTagTxt(link) for link in
+                links]
 
-    
+
     def output(self):
         return luigi.LocalTarget(
                 'generated_data/bjj_heroes/extract_from_p_tags.csv')
@@ -338,14 +341,14 @@ class ExtractFromPTags(luigi.Task):
         Sometimes lineage path like this, results in pattern below
         after splitting on > and then joining on ,
         want to remove parenthesis, but only after dedeuplication.
-        
+
         Mario Reis (> Jeferson Adam)
         """
         match = re.search(r"\(,", deduped_lin_path)
         if match is not None:
             deduped_lin_path = deduped_lin_path.replace(" (, ", ", ").replace(")", "")
         return deduped_lin_path
-    
+
     def invert_mapping(self, mapping):
         inverted_mapping = {}
         for key, value in mapping.items():
@@ -376,7 +379,7 @@ class ExtractFromPTags(luigi.Task):
             else:
                 mapping[key].append(line)
         return mapping
-    
+
     def extract_fullname(self, txt):
         """
         Parameters
@@ -397,7 +400,7 @@ class ExtractFromPTags(luigi.Task):
         if match is not None:
             return match.group(1)
         return None
-    
+
     def extract_lineage(self, txt):
         """
         Parameters
@@ -418,30 +421,29 @@ class ExtractFromPTags(luigi.Task):
         if match is not None:
             return match.group(1)
         return None
-    
-    def run(self): 
+
+    def run(self):
         Path(self.output().path).parent.mkdir(exist_ok=True)
-        
+
         # each chunk of entities seperated by newline
         mapping_lines = get_path_lines(
                 Path('manual_data/bjj_heroes/deduplication.txt'))
         mapping_lines = [self.remove_xao(ent) for ent in mapping_lines]
-        
+
         # Dict[str, List[str, str, ..]]
         mapping = self.get_dedupe_mapping(mapping_lines)
         # Needed each value in List[str] to be the key
         inverted_mapping = self.invert_mapping(mapping)
-        
+
         txt_files = get_file_list(
                 'generated_data/bjj_heroes/txt_section/p_tags')
         txt_file_strings = [str(txt_file) for txt_file in txt_files]
-        index_for_fighter_links = [int(float(Path(txt_file).stem)) for txt_file in txt_files]
         # make a list of unique entities so that we can analyze and perform some
         # manual deduplication
         # entities = []
         clean_lin_paths = []
         full_names = []
-        for txt_file in txt_files:    
+        for txt_file in txt_files:
             txt = get_path_txt(txt_file)
             lin = self.extract_lineage(txt)
             full_name = self.extract_fullname(txt)
@@ -473,19 +475,17 @@ class ExtractFromPTags(luigi.Task):
                 {"file_path": txt_file_strings,
                  "lineage": clean_lin_paths,
                  "full_name": full_names,
-                 "index_for_fighter_links": index_for_fighter_links
                  })
         # sort to easily merge back with fighter links data
-        df = df.sort_values(by="index_for_fighter_links")
         df.to_csv(self.output().path, index=False)
 
 class TransformLineagePathsToParentChild(ForceableTask):
-    
+
     clean_fighters_path = luigi.Parameter()
-    
+
     def requires(self):
         return ExtractFromPTags(self.clean_fighters_path)
-    
+
     def output(self):
         return luigi.LocalTarget(
                 'generated_data/bjj_heroes/entity_parent_lineage_paths.csv')
@@ -497,10 +497,8 @@ class TransformLineagePathsToParentChild(ForceableTask):
 
 #https://stackoverflow.com/questions/48418169/run-taska-and-run-next-tasks-with-parameters-that-returned-taska-in-luigi
 class RunAll(luigi.Task):
-    
     def complete(self):
         return self.output().exists()
-    
     def output(self):
         return luigi.LocalTarget('RunAll.marker')
 
@@ -509,10 +507,16 @@ class RunAll(luigi.Task):
 
     def run(self):
         df = pd.read_csv(self.input().path)
-        for index in df.index.to_numpy():
-            yield DownloadHTML(index)
-            yield TransformHTMLToPTagTxt(index)
-        
+        links = df["link"].astype(str).tolist()
+        df["link_id"] = df["link"].astype(str).apply(lambda x: x.split("p=")[1])
+        link_ids = df["link_id"].astype(str).tolist()
+        for link in links:
+            yield DownloadHTML(link)
+            yield TransformHTMLToPTagTxt(link)
+        #for index in df.index.to_numpy():
+        #    yield DownloadHTML(index)
+        #    yield TransformHTMLToPTagTxt(index)
+
         yield ExtractFromPTags(self.input().path)
         yield TransformLineagePathsToParentChild(
                 clean_fighters_path=self.input().path)
