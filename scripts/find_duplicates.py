@@ -25,14 +25,14 @@ def main(clean_lineage_paths_path):
     for lin in lineage:
         entities = lin.split(',')
         for entity in entities:
-            if "." in entity and entity not in possible_duplicates:
+            if "(" in entity and entity not in possible_duplicates:
                 possible_duplicates.append(entity)
         
         for dup in possible_duplicates:
             print(dup)
             name_list = dup.split(' ')
             print(name_list)
-            if len(name_list) == 3: #space in front of all names
+            if len(name_list) == 4: #space in front of all names
                 last_name = name_list[2]
                 print(last_name)
                 for entity in entities:
