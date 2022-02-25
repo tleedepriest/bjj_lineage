@@ -1,6 +1,7 @@
 """
 convienence functions for retrieving files
 """
+import requests
 from pathlib import Path
 from bs4 import BeautifulSoup
 
@@ -11,7 +12,7 @@ def get_path_lines(path_obj):
     with path_obj.open() as fh:
         lines = fh.readlines()
         return [line.rstrip() for line in lines]
-            
+
 
 
 def get_file_list(path_to_dir):
@@ -58,5 +59,15 @@ def get_soup_from_static_html(html):
         #soup = BeautifulSoup(contents, features='lxml')
     return soup
 
+def download_html(link, output_path):
+    """
+    link: str
+        the url that you want to download
 
+    output_path: str
+        the path where the html is written
+    """
+    response = requests.get(link)
+    with open(output_path, 'wb') as fh:
+        fh.write(response.content)
 
