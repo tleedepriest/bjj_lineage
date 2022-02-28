@@ -1,5 +1,10 @@
 """
-scrapes results from ibjjf
+Scrapes HTML files from the links found on
+this page
+
+https://ibjjf.com/events/results
+
+and loads the results into a SQL database for subsequent analysis.
 """
 import sys
 from pathlib import Path
@@ -88,37 +93,108 @@ class ExtractAllResultLink(luigi.Task):
 @requires(ExtractAllResultLink)
 class CompileResults(luigi.Task):
     def output(self):
-        return luigi.LocalTarget("generated_data/ibjjf/compiled_results.csv")
+        return luigi.LocalTarget("generated_data/ibjjf/ibjjf_results.csv")
 
     def run(self):
+        successful_dfs = []
         with_div = 0
         without_div = 0
         htmls = get_file_list("generated_data/ibjjf/events")
-        for html in htmls:
+
+        # if division has less than 4 participants, need to pad results
+        pad_length = 4
+
+        for num, html in enumerate(htmls):
+            division_results = {
+                "file_path": [],
+                "division": [],
+                "place": [],
+                "athlete": [],
+                "academy": []}
             soup = get_soup_from_static_html(html)
-            div_elements = soup.find_all('div',
-                                         attrs={'class': 'category mt-4 mb-3'})
-            category = soup.find_all('h4', attrs={"class": "subtitle"})
-            if div_elements:
-                with_div+=1
-                for div in div_elements:
-                    #print(div)
-                    pass
-            elif category:
+            athletes_section = soup.find(
+                'div', attrs={'class': 'col-sm-12 athletes'})
+            athletes_section_type_two = soup.find(
+                'div', attrs={"class": "col-xs-12 col-md-6 col-athlete"})
+
+            if athletes_section:
+                division = athletes_section.find_all(
+                    'div', attrs={'class': 'category mt-4 mb-3'})
+
+                if division:
+                    with_div+=1
+                    for div in division:
+                        division_results["file_path"].extend(
+                            [str(html)]*pad_length)
+                        division_results["division"].extend(
+                            [div.text]*pad_length)
+
+                        table = div.findNext('table')
+
+                        place = table.find_all(
+                            'td', attrs={'class': 'place'})
+                        athlete_name = table.find_all(
+                            'div', attrs={'class': 'athlete-name'})
+                        academy_name = table.find_all(
+                            'div', attrs={'class': 'academy-name'})
+
+                        place = [
+                            place.text for place
+                            in place]
+                        athlete_name = [
+                            athlete_name.text for athlete_name
+                            in athlete_name]
+                        academy_name = [
+                            academy_name.text for academy_name
+                            in academy_name]
+
+                        place+=[None]*(pad_length-len(place))
+                        athlete_name+=[None]*(pad_length-len(athlete_name))
+                        academy_name+=[None]*(pad_length-len(academy_name))
+
+                        division_results["place"].extend(place)
+                        division_results["athlete"].extend(athlete)
+                        division_results["academy"].extend(academy_name)
+
+            elif athletes_section_type_two:
+                category = athletes_section_type_two.find_all(
+                    'h4', attrs={"class": "subtitle"})
                 for cat in category:
-                    print(cat.text)
+                    division_results["division"].extend(
+                        [cat.text.strip()]*pad_length)
+                    division_results["file_path"].extend(
+                        [str(html)]*pad_length)
+
                     cat_list = cat.findNext('div')
-                    athletes = cat_list.find_all('div', attrs={"class": "athlete-item"})
+                    athletes = cat_list.find_all(
+                        'div', attrs={"class": "athlete-item"})
+
+                    athlete_places = []
+                    athlete_academies = []
+                    athlete_names = []
+
                     for athlete in athletes:
-                        position_athlete = athlete.find('div', attrs={"class":
-                                                                    "position-athlete"})
-                        name = athlete.find('div', attrs={"class":"name"})
-                        name_p = name.find('p').text
-                        team = name.find('span').text
-                        #if position_athlete:
-                        print(position_athlete.text)
-                        print(name_p)
-                        #print(team)
+                        place = athlete.find(
+                            'div', attrs={"class": "position-athlete"})
+                        athlete_places.append(place.text.strip())
+                        name = athlete.find(
+                            'div', attrs={"class":"name"})
+                        name_team = name.find('p').text
+                        name_team_split = name_team.strip().split('\n')
+                        athlete_name = name_team_split[0]
+                        team_name = name_team_split[-1].lstrip()
+                        athlete_academies.append(team_name)
+                        athlete_names.append(athlete_name)
+                        #print(team_name)
+
+
+                    athlete_places+=[None]*(pad_length-len(athlete_places))
+                    athlete_names+=[None]*(pad_length-len(athlete_names))
+                    athlete_academies+=[None]*(pad_length-len(athlete_academies))
+
+                    division_results["place"].extend(athlete_places)
+                    division_results["athlete"].extend(athlete_names)
+                    division_results["academy"].extend(athlete_academies)
                 with_div+=1
 
             else:
@@ -127,9 +203,21 @@ class CompileResults(luigi.Task):
 
             print(f"with div: {with_div}")
             print(f"without div {without_div}")
+            #print(html)
+
+            try:
+                df = pd.DataFrame.from_dict(division_results)
+                successful_dfs.append(df)
+            except ValueError:
+
+                with open("debug.txt", 'a') as fh:
+                    fh.write(str(html))
+                    fh.write('\n')
+        final = pd.concat(successful_dfs)
+        final.to_csv(  index=False)
         #<a target="_blank" class="event-year-result" data-n="Curitiba Spring International Open IBJJF Jiu-Jitsu No-Gi Championship" data-y="2018" href="https://www.ibjjfdb.com/ChampionshipResults/1011/PublicResults">2018</a>
 
 
 if __name__ == "__main__":
-    luigi.run()
+    luigi.build(tasks=[CompileResults()])
 
