@@ -1,9 +1,36 @@
 """
-convienence functions for retrieving files
+convienence functions for retrieving files and connection
+and cursor objects for database
 """
 import requests
 from pathlib import Path
 from bs4 import BeautifulSoup
+
+import pymysql
+from configparser import ConfigParser
+
+def get_conn_cursor():
+    """
+    Creates connection using pymysql and mysql.cfg file
+    returns connection and cursor objects
+    """
+    config = ConfigParser()
+    config.read('mysql.cfg')
+    # To connect MySQL database
+    conn = pymysql.connect(
+        host=config['mysqldb']['host'],
+        user=config['mysqldb']['user'],
+        password =config['mysqldb']['password'],
+        db=config['mysqldb']['db'],
+        )
+
+    cur = conn.cursor()
+    return cur, conn
+    #cur.execute("select @@version")
+    #output = cur.fetchall()
+
+    # To close the connection
+    #conn.close()
 
 def get_path_lines(path_obj):
     """
