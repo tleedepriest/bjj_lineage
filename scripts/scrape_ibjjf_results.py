@@ -11,14 +11,17 @@ from pathlib import Path
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-from utils.file_utils import download_html, get_soup_from_static_html, get_file_list
+from utils.file_utils import download_html, get_soup_from_static_html, get_file_list, get_conn_cursor
 
 import luigi
 from luigi.util import requires
 
 class DownloadResults(luigi.Task):
     """
-    Downloads HTML file for IBJJF Results
+    Downloads HTML file for IBJJF Results.
+
+    Save file locally for archiving and to be
+    kind about making too many requests to server.
     """
     def requires(self):
         return None
@@ -35,7 +38,10 @@ class DownloadResults(luigi.Task):
 
 @requires(DownloadResults)
 class ExtractResultsLinks(luigi.Task):
-
+    """
+    Extract all links from the results page and saves links to local
+    file.
+    """
     def output(self):
         return luigi.LocalTarget("generated_data/ibjjf/result_links.csv")
 
@@ -59,7 +65,9 @@ class ExtractResultsLinks(luigi.Task):
 
 
 class DownloadResultFromResultLink(luigi.Task):
-
+    """
+    Downloads the previously scraped links.
+    """
     link = luigi.Parameter()
     year = luigi.IntParameter()
     event = luigi.Parameter()
@@ -214,10 +222,28 @@ class CompileResults(luigi.Task):
                     fh.write(str(html))
                     fh.write('\n')
         final = pd.concat(successful_dfs)
-        final.to_csv(  index=False)
-        #<a target="_blank" class="event-year-result" data-n="Curitiba Spring International Open IBJJF Jiu-Jitsu No-Gi Championship" data-y="2018" href="https://www.ibjjfdb.com/ChampionshipResults/1011/PublicResults">2018</a>
+        final.to_csv(self.output().path, index=False)
 
+@requires(CompileResults)
+class LoadResultsIntoDB(luigi.Task):
+    """
+    This loads the results of the previous file into a database.
+    """
+    def output(self):
+        luigi.LocalTarget('markers/load_ibjjf_results_into_db.marker')
+    def run(self):
+        ibjjf_results = pd.read_csv(self.input().path)
+        division_cols = ["age_group", "gender", "belt", "weight_group"]
+        event_cols = ['year', 'event_name']
+        ibjjf_results[division_cols] = ibjjf_results.division.str.split(
+            " / ",expand=True)
+        ibjjf_results['year'] = ibjjf_results['file_path'].apply(
+            lambda x: x.split('/')[-1].split('_')[0])
+        ibjjf_results['event_name'] = ibjjf_results['file_path'].apply(
+            lambda x: x.split('/')[-1].split('_')[1].split('.')[0])
+        print(ibjjf_results['year'])
+        print(ibjjf_results['event_name'])
 
 if __name__ == "__main__":
-    luigi.build(tasks=[CompileResults()])
+    luigi.build(tasks=[CompileResults(), LoadResultsIntoDB()])
 
