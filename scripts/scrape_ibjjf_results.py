@@ -11,8 +11,7 @@ from pathlib import Path
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-from utils.file_utils import download_html, get_soup_from_static_html, get_file_list, get_conn_cursor
-
+from utils.file_utils import download_html, get_soup_from_static_html, get_file_list, get_conn_cursor, get_sqlalchemy_conn
 import luigi
 from luigi.util import requires
 
@@ -232,6 +231,8 @@ class LoadResultsIntoDB(luigi.Task):
     def output(self):
         luigi.LocalTarget('markers/load_ibjjf_results_into_db.marker')
     def run(self):
+
+        # PREPARE THE DATAFRAME TO BE LOADED
         ibjjf_results = pd.read_csv(self.input().path)
         division_cols = ["age_group", "gender", "belt", "weight_group"]
         event_cols = ['year', 'event_name']
@@ -243,6 +244,27 @@ class LoadResultsIntoDB(luigi.Task):
             lambda x: x.split('/')[-1].split('_')[1].split('.')[0])
         print(ibjjf_results['year'])
         print(ibjjf_results['event_name'])
+        ibjjf_results.to_csv("ibjjf_results_transformed.csv", index=False)
+        # CREATE TEMPORARY TABLE
+        conn, cur = get_conn_cursor()
+
+        cur.execute('''CREATE TABLE IF NOT EXISTS
+                        ibjjf_results
+                        (year INT,
+                         event_name VARCHAR(200),
+                         age_group VARCHAR(100),
+                         gender VARCHAR(100),
+                         belt VARCHAR(100),
+                         weight_group VARCHAR(100),
+                         place INT,
+                         athlete VARCHAR(200),
+                         academy VARCHAR(200));'''
+                    )
+        conn.close()
+        conn = get_sqlalchemy_conn()
+        ibjjf_results = ibjjf_results.drop(columns=['file_path', 'division'])
+        ibjjf_results.to_sql("ibjjf_results", con=conn, if_exists='append', chunksize=1000, index=False)
+
 
 if __name__ == "__main__":
     luigi.build(tasks=[CompileResults(), LoadResultsIntoDB()])
