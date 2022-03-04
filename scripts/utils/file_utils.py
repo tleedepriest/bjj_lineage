@@ -6,8 +6,10 @@ import requests
 from pathlib import Path
 from bs4 import BeautifulSoup
 
+from sqlalchemy import create_engine
 import pymysql
 from configparser import ConfigParser
+
 
 def get_conn_cursor():
     """
@@ -25,12 +27,25 @@ def get_conn_cursor():
         )
 
     cur = conn.cursor()
-    return cur, conn
+    return conn, cur
     #cur.execute("select @@version")
     #output = cur.fetchall()
 
     # To close the connection
     #conn.close()
+
+def get_sqlalchemy_conn():
+    """
+    need connection for inserting dataframe into table
+    """
+    config = ConfigParser()
+    config.read('mysql.cfg')
+    user = config['mysqldb']['user']
+    password = config['mysqldb']['password']
+    db = db=config['mysqldb']['db']
+    # To connect MySQL database
+    engine = create_engine(f"mysql+pymysql://{user}:{password}@localhost/{db}")
+    return engine
 
 def get_path_lines(path_obj):
     """
