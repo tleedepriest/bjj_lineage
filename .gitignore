@@ -9,3 +9,9 @@ __pycache__/*
 logs/*
 markers/*
 
+#contains password to local database
+mysql.cfg
+
+# contains secret key
+scripts/luigi.cfg
+
