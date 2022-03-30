@@ -1,6 +1,7 @@
 """
 Test suite to make sure we are scraping the results we want
 """
+from pathlib import Path
 from datetime import date
 import unittest
 import pandas as pd
@@ -49,7 +50,7 @@ class TestExtractAllLinks(unittest.TestCase):
         # only new links should be added as time progresses
         self.assertGreaterEqual(len(df), 1054)
         validated_df = self.schema(df)
-        Path(self.extract_results_links).unlink()
+        Path(output).unlink()
 
 
 if __name__ == "__main__":
