@@ -6,6 +6,7 @@ https://ibjjf.com/events/results
 
 and loads the results into a SQL database for subsequent analysis.
 """
+from datetime import date
 import sys
 from pathlib import Path
 import pandas as pd
@@ -17,6 +18,7 @@ import luigi
 from luigi.util import requires
 from pymysql.err import IntegrityError
 
+
 class DownloadResults(luigi.Task):
     """
     Downloads HTML file for IBJJF Results.
@@ -24,18 +26,21 @@ class DownloadResults(luigi.Task):
     Save file locally for archiving and to be
     kind about making too many requests to server.
     """
+    date = luigi.DateParameter(default=date.today())
+
     def requires(self):
         return None
 
     def output(self):
         ibjjf_dir = Path("generated_data/ibjjf")
         ibjjf_dir.mkdir(exist_ok=True, parents=True)
-        download_path = ibjjf_dir / "ibjjf_results.html"
+        download_path = ibjjf_dir / f"ibjjf_results_{self.date}.html"
         return luigi.LocalTarget(download_path)
 
     def run(self):
         download_html("https://ibjjf.com/events/results",
                       self.output().path)
+
 
 @requires(DownloadResults)
 class ExtractResultsLinks(luigi.Task):
@@ -44,27 +49,35 @@ class ExtractResultsLinks(luigi.Task):
     file.
     """
     def output(self):
-        return luigi.LocalTarget("generated_data/ibjjf/result_links.csv")
+        return luigi.LocalTarget(
+            f"generated_data/ibjjf/result_links_{self.date}.csv")
 
-    def run(self):
+    def get_results_links(self, soup):
+        """
+        """
         data_dict = {"year": [],
                      "event": [],
                      "link": []}
-
-        soup = get_soup_from_static_html(self.input().path)
         for a_el in soup.find_all("a",
                                   attrs={"class": "event-year-result"}):
             year = a_el["data-y"]
             event = a_el["data-n"]
             link = a_el["href"]
+
             data_dict["year"].append(year)
             data_dict["event"].append(event)
             data_dict["link"].append(link)
 
         df = pd.DataFrame().from_dict(data_dict)
+        return df
+
+    def run(self):
+        soup = get_soup_from_static_html(self.input().path)
+        df = self.get_results_links(soup)
         df.to_csv(self.output().path, index=False)
 
-
+# This is yielded by the Next Task by looping
+# links from above.
 class DownloadResultFromResultLink(luigi.Task):
     """
     Downloads the previously scraped links.
@@ -82,6 +95,7 @@ class DownloadResultFromResultLink(luigi.Task):
 
 
 
+# This reads in the DataFrame From containing all links and downloads and writes each file.
 @requires(ExtractResultsLinks)
 class ExtractAllResultLink(luigi.Task):
 
@@ -98,6 +112,7 @@ class ExtractAllResultLink(luigi.Task):
 
         with open(self.output().path, 'w') as fh:
             fh.write("")
+
 
 @requires(ExtractAllResultLink)
 class CompileResults(luigi.Task):
